@@ -98,9 +98,13 @@ export function DashboardView() {
         });
     };
     loadDashboard();
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(/\/$/, "");
+    const events = new EventSource(`${apiBase}/api/v1/events`, { withCredentials: true });
+    events.addEventListener("dashboard", loadDashboard);
     const refreshTimer = window.setInterval(loadDashboard, 30_000);
     return () => {
       cancelled = true;
+      events.close();
       window.clearInterval(refreshTimer);
     };
   }, []);

@@ -81,6 +81,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/auth/sign-out", api.signOut)
 	mux.HandleFunc("GET /api/v1/me", api.me)
 	mux.HandleFunc("GET /api/v1/research", api.research)
+	mux.HandleFunc("GET /api/v1/events", api.events)
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
 	mux.HandleFunc("GET /api/v1/companies/{companyID}", api.getCompany)
@@ -271,6 +272,22 @@ func (a *app) research(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close(); evidence := make([]map[string]any, 0)
 	for rows.Next() { var id, title, description, impact, sourceURL string; var detected time.Time; var confidence float64; if err := rows.Scan(&id, &title, &description, &impact, &detected, &confidence, &sourceURL); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read research evidence."); return }; evidence = append(evidence, map[string]any{"id": id, "title": title, "description": description, "impact": impact, "detectedAt": detected.Format(time.RFC3339), "confidence": confidence, "sourceUrl": sourceURL}) }
 	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"company": company, "evidence": evidence, "generatedAt": time.Now().UTC().Format(time.RFC3339)}, Meta: map[string]any{"requestId": requestID(r), "source": "workspace PostgreSQL records"}})
+}
+
+func (a *app) events(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok { writeError(w, r, http.StatusInternalServerError, "STREAM_UNAVAILABLE", "Live events are unavailable."); return }
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	workspaceID := a.workspaceIDFor(r); lastSignature := ""
+	ticker := time.NewTicker(5 * time.Second); defer ticker.Stop()
+	for {
+		signature := ""
+		err := a.db.QueryRowContext(r.Context(), `SELECT CONCAT((SELECT COUNT(*) FROM companies WHERE workspace_id = $1), ':', (SELECT COUNT(*) FROM people WHERE workspace_id = $1), ':', (SELECT COUNT(*) FROM signals WHERE workspace_id = $1), ':', (SELECT COUNT(*) FROM opportunities WHERE workspace_id = $1), ':', (SELECT COUNT(*) FROM tasks WHERE workspace_id = $1))`, workspaceID).Scan(&signature)
+		if err == nil && signature != lastSignature { lastSignature = signature; _, _ = fmt.Fprintf(w, "event: dashboard\ndata: {\"signature\":%q}\n\n", signature); flusher.Flush() }
+		select { case <-r.Context().Done(): return; case <-ticker.C: }
+	}
 }
 
 func formatCurrency(value float64) string {
@@ -658,6 +675,7 @@ func (a *app) createCompany(w http.ResponseWriter, r *http.Request) {
 func withMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
