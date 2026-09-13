@@ -79,6 +79,8 @@ func main() {
 	mux.HandleFunc("GET /api/v1/signals", api.listSignals)
 	mux.HandleFunc("GET /api/v1/opportunities", api.listOpportunities)
 	mux.HandleFunc("GET /api/v1/opportunities/{opportunityID}", api.getOpportunity)
+	mux.HandleFunc("GET /api/v1/lists", api.listLists)
+	mux.HandleFunc("POST /api/v1/lists", api.createList)
 	mux.HandleFunc("GET /api/v1/dashboard/summary", api.dashboardSummaryHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/insights", api.dashboardInsightsHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/tasks", api.dashboardTasksHandler)
@@ -373,6 +375,26 @@ func (a *app) getOpportunity(w http.ResponseWriter, r *http.Request) {
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load opportunity."); return }
 	opportunity["id"], opportunity["company"], opportunity["industry"], opportunity["location"], opportunity["score"], opportunity["employees"], opportunity["stage"], opportunity["status"] = id, company, industry, location, score, employees, stage, status
 	writeJSON(w, http.StatusOK, apiResponse{Data: opportunity, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) listLists(w http.ResponseWriter, r *http.Request) {
+	query := "%" + strings.TrimSpace(r.URL.Query().Get("q")) + "%"
+	rows, err := a.db.QueryContext(r.Context(), `SELECT l.id::text, l.name, l.type, COUNT(i.id), l.updated_at FROM lists l LEFT JOIN list_items i ON i.list_id = l.id WHERE l.workspace_id = $1 AND ($2 = '%%' OR l.name ILIKE $2) GROUP BY l.id ORDER BY l.updated_at DESC`, a.workspaceID, query)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load lists."); return }
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() { var id, name, listType string; var count int; var updated time.Time; if err := rows.Scan(&id, &name, &listType, &count, &updated); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read lists."); return }; data = append(data, map[string]any{"id": id, "name": name, "type": listType, "count": count, "updated": updated.Format(time.RFC3339)}) }
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r), "total": len(data)}})
+}
+
+func (a *app) createList(w http.ResponseWriter, r *http.Request) {
+	var input struct { Name string `json:"name"`; Type string `json:"type"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || strings.TrimSpace(input.Name) == "" { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "A list name is required."); return }
+	if input.Type == "" { input.Type = "manual" }
+	var id, name, listType string; var updated time.Time
+	err := a.db.QueryRowContext(r.Context(), `INSERT INTO lists (workspace_id, name, type) VALUES ($1, $2, $3) RETURNING id::text, name, type, updated_at`, a.workspaceID, strings.TrimSpace(input.Name), input.Type).Scan(&id, &name, &listType, &updated)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to create list."); return }
+	writeJSON(w, http.StatusCreated, apiResponse{Data: map[string]any{"id": id, "name": name, "type": listType, "count": 0, "updated": updated.Format(time.RFC3339)}, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func (a *app) createCompany(w http.ResponseWriter, r *http.Request) {

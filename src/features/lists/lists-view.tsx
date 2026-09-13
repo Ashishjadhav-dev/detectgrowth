@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MoreVertical, Plus, Search, Star, Tags, UserRoundPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { SectionHeader } from "@/components/ui/patterns";
+import { createList, listLists, type ApiList } from "@/lib/api/lists";
 
 const folders = ["All Lists", "Smart Lists", "Watchlists", "Saved Searches"] as const;
 const rows = [
@@ -18,9 +19,13 @@ const rows = [
 export function ListsView() {
   const [query, setQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState<(typeof folders)[number]>("All Lists");
+  const [apiLists, setApiLists] = useState<ApiList[] | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  useEffect(() => { listLists(query).then(setApiLists).catch((error: Error) => setApiError(error.message)); }, [query]);
   const normalized = query.trim().toLowerCase();
 
-  const filtered = rows.filter((row) => {
+  const sourceRows = apiLists ?? rows;
+  const filtered = sourceRows.filter((row) => {
     const matchesQuery = !normalized || [row.name, row.type, row.updated, String(row.count)].some((value) => value.toLowerCase().includes(normalized));
     const matchesFolder =
       activeFolder === "All Lists" ||
@@ -38,7 +43,10 @@ export function ListsView() {
           <h1 className="page-title mt-2">Saved lists and watchlists</h1>
           <p className="mt-1 text-sm text-muted">Filter, search, and manage saved workspaces in a more useful operations view.</p>
         </div>
-        <Button>
+        <Button onClick={() => {
+          const name = window.prompt("List name");
+          if (name?.trim()) createList(name.trim()).then((created) => setApiLists((current) => [created, ...(current ?? [])])).catch((error: Error) => setApiError(error.message));
+        }}>
           <Plus className="size-4" />
           Create new list
         </Button>
@@ -87,6 +95,7 @@ export function ListsView() {
                 </button>
               ))}
             </div>
+            {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Lists API unavailable; showing preview data.</div> : null}
           </div>
 
           {filtered.length > 0 ? (
