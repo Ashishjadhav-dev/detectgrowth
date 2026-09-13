@@ -83,10 +83,21 @@ func main() {
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
 	mux.HandleFunc("GET /api/v1/companies/{companyID}", api.getCompany)
+	mux.HandleFunc("PATCH /api/v1/companies/{companyID}", api.updateCompany)
+	mux.HandleFunc("DELETE /api/v1/companies/{companyID}", api.deleteCompany)
 	mux.HandleFunc("GET /api/v1/people", api.listPeople)
+	mux.HandleFunc("POST /api/v1/people", api.createPerson)
+	mux.HandleFunc("PATCH /api/v1/people/{personID}", api.updatePerson)
+	mux.HandleFunc("DELETE /api/v1/people/{personID}", api.deletePerson)
 	mux.HandleFunc("GET /api/v1/signals", api.listSignals)
+	mux.HandleFunc("POST /api/v1/signals", api.createSignal)
+	mux.HandleFunc("PATCH /api/v1/signals/{signalID}", api.updateSignal)
+	mux.HandleFunc("DELETE /api/v1/signals/{signalID}", api.deleteSignal)
 	mux.HandleFunc("GET /api/v1/opportunities", api.listOpportunities)
+	mux.HandleFunc("POST /api/v1/opportunities", api.createOpportunity)
 	mux.HandleFunc("GET /api/v1/opportunities/{opportunityID}", api.getOpportunity)
+	mux.HandleFunc("PATCH /api/v1/opportunities/{opportunityID}", api.updateOpportunity)
+	mux.HandleFunc("DELETE /api/v1/opportunities/{opportunityID}", api.deleteOpportunity)
 	mux.HandleFunc("GET /api/v1/lists", api.listLists)
 	mux.HandleFunc("POST /api/v1/lists", api.createList)
 	mux.HandleFunc("GET /api/v1/dashboard/summary", api.dashboardSummaryHandler)
@@ -178,6 +189,13 @@ func (a *app) sessionUser(r *http.Request) (authUser, error) {
 	user.Workspace = map[string]any{"id": workspaceID, "name": workspaceName}; return user, err
 }
 
+func (a *app) workspaceIDFor(r *http.Request) string {
+	if user, err := a.sessionUser(r); err == nil {
+		if id, ok := user.Workspace["id"].(string); ok && id != "" { return id }
+	}
+	return a.workspaceID
+}
+
 func newSessionToken() (string, string, error) { b := make([]byte, 32); if _, err := rand.Read(b); err != nil { return "", "", err }; token := fmt.Sprintf("%x", b); return token, hashToken(token), nil }
 func hashToken(token string) string { sum := sha256.Sum256([]byte(token)); return fmt.Sprintf("%x", sum[:]) }
 func randomSuffix() string { b := make([]byte, 6); if _, err := rand.Read(b); err != nil { return strconv.FormatInt(time.Now().UnixNano(), 10) }; return fmt.Sprintf("%x", b) }
@@ -209,18 +227,18 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func (a *app) dashboardSummaryHandler(w http.ResponseWriter, r *http.Request) {
 	var companies, people, signals, opportunities int
 	var pipelineValue, averageScore float64
-	err := a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM companies WHERE workspace_id = $1`, a.workspaceID).Scan(&companies)
+	err := a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM companies WHERE workspace_id = $1`, a.workspaceIDFor(r)).Scan(&companies)
 	if err == nil {
-		err = a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM people WHERE workspace_id = $1`, a.workspaceID).Scan(&people)
+		err = a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM people WHERE workspace_id = $1`, a.workspaceIDFor(r)).Scan(&people)
 	}
 	if err == nil {
-		err = a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM signals WHERE workspace_id = $1`, a.workspaceID).Scan(&signals)
+		err = a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM signals WHERE workspace_id = $1`, a.workspaceIDFor(r)).Scan(&signals)
 	}
 	if err == nil {
-		err = a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM opportunities WHERE workspace_id = $1`, a.workspaceID).Scan(&opportunities)
+		err = a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM opportunities WHERE workspace_id = $1`, a.workspaceIDFor(r)).Scan(&opportunities)
 	}
 	if err == nil {
-		err = a.db.QueryRowContext(r.Context(), `SELECT COALESCE(SUM(expected_value), 0), COALESCE(AVG(score), 0) FROM opportunities WHERE workspace_id = $1 AND status = 'open'`, a.workspaceID).Scan(&pipelineValue, &averageScore)
+		err = a.db.QueryRowContext(r.Context(), `SELECT COALESCE(SUM(expected_value), 0), COALESCE(AVG(score), 0) FROM opportunities WHERE workspace_id = $1 AND status = 'open'`, a.workspaceIDFor(r)).Scan(&pipelineValue, &averageScore)
 	}
 	if err != nil {
 		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load dashboard summary.")
@@ -236,7 +254,7 @@ func (a *app) dashboardSummaryHandler(w http.ResponseWriter, r *http.Request) {
 			"averageGrowthScore": strconv.Itoa(int(averageScore + 0.5)),
 			"growthDelta":        "0%",
 		},
-		Meta: map[string]any{"requestId": requestID(r), "workspaceId": a.workspaceID},
+		Meta: map[string]any{"requestId": requestID(r), "workspaceId": a.workspaceIDFor(r)},
 	})
 }
 
@@ -251,7 +269,7 @@ func (a *app) dashboardSignalsHandler(w http.ResponseWriter, r *http.Request) {
 		SELECT s.id::text, s.title, COALESCE(c.name, 'Unknown company'),
 		       COALESCE(s.confidence, 0), s.impact
 		FROM signals s LEFT JOIN companies c ON c.id = s.company_id
-		WHERE s.workspace_id = $1 ORDER BY s.detected_at DESC NULLS LAST, s.created_at DESC LIMIT 5`, a.workspaceID)
+		WHERE s.workspace_id = $1 ORDER BY s.detected_at DESC NULLS LAST, s.created_at DESC LIMIT 5`, a.workspaceIDFor(r))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load dashboard signals."); return }
 	defer rows.Close()
 	data := make([]map[string]any, 0)
@@ -270,7 +288,7 @@ func (a *app) dashboardOpportunitiesHandler(w http.ResponseWriter, r *http.Reque
 		       COALESCE(o.score, 0), COALESCE(c.employee_range, ''),
 		       COALESCE((SELECT title FROM signals s WHERE s.company_id = o.company_id ORDER BY s.detected_at DESC NULLS LAST LIMIT 1), '')
 		FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id
-		WHERE o.workspace_id = $1 ORDER BY o.score DESC NULLS LAST LIMIT 5`, a.workspaceID)
+		WHERE o.workspace_id = $1 ORDER BY o.score DESC NULLS LAST LIMIT 5`, a.workspaceIDFor(r))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load dashboard opportunities."); return }
 	defer rows.Close()
 	data := make([]map[string]any, 0)
@@ -287,7 +305,7 @@ func (a *app) dashboardWatchlistHandler(w http.ResponseWriter, r *http.Request) 
 	rows, err := a.db.QueryContext(r.Context(), `
 		SELECT c.name, w.score, w.delta
 		FROM watchlist_items w JOIN companies c ON c.id = w.company_id
-		WHERE w.workspace_id = $1 ORDER BY w.score DESC, c.name LIMIT 10`, a.workspaceID)
+		WHERE w.workspace_id = $1 ORDER BY w.score DESC, c.name LIMIT 10`, a.workspaceIDFor(r))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load watchlist."); return }
 	defer rows.Close()
 	data := make([]map[string]any, 0)
@@ -304,7 +322,7 @@ func (a *app) dashboardPipelineHandler(w http.ResponseWriter, r *http.Request) {
 	rows, err := a.db.QueryContext(r.Context(), `
 		SELECT pipeline_stage, COUNT(*), COALESCE(SUM(expected_value), 0)
 		FROM opportunities WHERE workspace_id = $1 GROUP BY pipeline_stage
-		ORDER BY pipeline_stage`, a.workspaceID)
+		ORDER BY pipeline_stage`, a.workspaceIDFor(r))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load dashboard pipeline."); return }
 	defer rows.Close()
 	data := make([]map[string]string, 0)
@@ -322,7 +340,7 @@ func (a *app) dashboardTrendingHandler(w http.ResponseWriter, r *http.Request) {
 	rows, err := a.db.QueryContext(r.Context(), `
 		SELECT c.name, COUNT(s.id) AS signal_count
 		FROM companies c LEFT JOIN signals s ON s.company_id = c.id
-		WHERE c.workspace_id = $1 GROUP BY c.id, c.name ORDER BY signal_count DESC, c.name LIMIT 5`, a.workspaceID)
+		WHERE c.workspace_id = $1 GROUP BY c.id, c.name ORDER BY signal_count DESC, c.name LIMIT 5`, a.workspaceIDFor(r))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load trending companies."); return }
 	defer rows.Close()
 	data := make([]map[string]string, 0)
@@ -336,7 +354,7 @@ func (a *app) dashboardTrendingHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) dashboardInsightsHandler(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, body, created_at FROM dashboard_insights WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 10`, a.workspaceID)
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, body, created_at FROM dashboard_insights WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 10`, a.workspaceIDFor(r))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load insights."); return }
 	defer rows.Close()
 	data := make([]map[string]string, 0)
@@ -345,7 +363,7 @@ func (a *app) dashboardInsightsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) dashboardTasksHandler(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, label, urgency, due, completed FROM tasks WHERE workspace_id = $1 ORDER BY completed, created_at DESC LIMIT 25`, a.workspaceID)
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, label, urgency, due, completed FROM tasks WHERE workspace_id = $1 ORDER BY completed, created_at DESC LIMIT 25`, a.workspaceIDFor(r))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load tasks."); return }
 	defer rows.Close()
 	data := make([]map[string]any, 0)
@@ -358,7 +376,7 @@ func (a *app) updateDashboardTaskHandler(w http.ResponseWriter, r *http.Request)
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input.Completed == nil { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "completed is required."); return }
 	var task map[string]any = map[string]any{}
 	var id, label, urgency, due string; var completed bool
-	err := a.db.QueryRowContext(r.Context(), `UPDATE tasks SET completed = $1, updated_at = now() WHERE id = $2 AND workspace_id = $3 RETURNING id::text, label, urgency, due, completed`, *input.Completed, r.PathValue("taskID"), a.workspaceID).Scan(&id, &label, &urgency, &due, &completed)
+	err := a.db.QueryRowContext(r.Context(), `UPDATE tasks SET completed = $1, updated_at = now() WHERE id = $2 AND workspace_id = $3 RETURNING id::text, label, urgency, due, completed`, *input.Completed, r.PathValue("taskID"), a.workspaceIDFor(r)).Scan(&id, &label, &urgency, &due, &completed)
 	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Task not found."); return }
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update task."); return }
 	task["id"], task["label"], task["urgency"], task["due"], task["completed"] = id, label, urgency, due, completed
@@ -366,7 +384,7 @@ func (a *app) updateDashboardTaskHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *app) dashboardActivityHandler(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, body, created_at FROM activity_events WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 10`, a.workspaceID)
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, body, created_at FROM activity_events WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 10`, a.workspaceIDFor(r))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load activity."); return }
 	defer rows.Close()
 	data := make([]map[string]string, 0)
@@ -382,7 +400,7 @@ func (a *app) listCompanies(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(location, ''), COALESCE(employee_range, ''), status, created_at, updated_at
 		FROM companies
 		WHERE workspace_id = $1 AND ($2 = '%%' OR name ILIKE $2 OR COALESCE(domain, '') ILIKE $2)
-		ORDER BY updated_at DESC`, a.workspaceID, search)
+		ORDER BY updated_at DESC`, a.workspaceIDFor(r), search)
 	if err != nil {
 		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load companies.")
 		return
@@ -414,9 +432,26 @@ func (a *app) listCompanies(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (a *app) updateCompany(w http.ResponseWriter, r *http.Request) {
+	var input struct { Name *string `json:"name"`; Domain *string `json:"domain"`; Industry *string `json:"industry"`; Location *string `json:"location"`; EmployeeRange *string `json:"employeeRange"`; Status *string `json:"status"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid company payload."); return }
+	var company Company
+	err := a.db.QueryRowContext(r.Context(), `UPDATE companies SET name = COALESCE($1, name), domain = COALESCE($2, domain), industry = COALESCE($3, industry), location = COALESCE($4, location), employee_range = COALESCE($5, employee_range), status = COALESCE($6, status), updated_at = now() WHERE id = $7 AND workspace_id = $8 RETURNING id::text, name, COALESCE(domain, ''), COALESCE(industry, ''), COALESCE(location, ''), COALESCE(employee_range, ''), status, created_at, updated_at`, input.Name, input.Domain, input.Industry, input.Location, input.EmployeeRange, input.Status, r.PathValue("companyID"), a.workspaceIDFor(r)).Scan(&company.ID, &company.Name, &company.Domain, &company.Industry, &company.Location, &company.EmployeeRange, &company.Status, &company.CreatedAt, &company.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Company not found."); return }
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update company."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: company, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) deleteCompany(w http.ResponseWriter, r *http.Request) {
+	result, err := a.db.ExecContext(r.Context(), `DELETE FROM companies WHERE id = $1 AND workspace_id = $2`, r.PathValue("companyID"), a.workspaceIDFor(r))
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to delete company."); return }
+	count, _ := result.RowsAffected(); if count == 0 { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Company not found."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": r.PathValue("companyID"), "deleted": true}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
 func (a *app) listPeople(w http.ResponseWriter, r *http.Request) {
 	query := "%" + strings.TrimSpace(r.URL.Query().Get("q")) + "%"
-	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, name, COALESCE(title, ''), COALESCE(department, ''), COALESCE(decision_score, 0) FROM people WHERE workspace_id = $1 AND ($2 = '%%' OR name ILIKE $2 OR title ILIKE $2 OR department ILIKE $2) ORDER BY decision_score DESC NULLS LAST, name LIMIT 100`, a.workspaceID, query)
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, name, COALESCE(title, ''), COALESCE(department, ''), COALESCE(decision_score, 0) FROM people WHERE workspace_id = $1 AND ($2 = '%%' OR name ILIKE $2 OR title ILIKE $2 OR department ILIKE $2) ORDER BY decision_score DESC NULLS LAST, name LIMIT 100`, a.workspaceIDFor(r), query)
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load people."); return }
 	defer rows.Close()
 	data := make([]map[string]any, 0)
@@ -424,23 +459,49 @@ func (a *app) listPeople(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r), "total": len(data)}})
 }
 
+func (a *app) createPerson(w http.ResponseWriter, r *http.Request) {
+	var input struct { Name string `json:"name"`; CompanyID *string `json:"companyId"`; Title string `json:"title"`; Department string `json:"department"`; Email string `json:"email"`; Phone string `json:"phone"`; LinkedInURL string `json:"linkedinUrl"`; DecisionScore *int `json:"decisionScore"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || strings.TrimSpace(input.Name) == "" { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "A person name is required."); return }
+	var id, name, title, department string; var score sql.NullInt64
+	err := a.db.QueryRowContext(r.Context(), `INSERT INTO people (workspace_id, company_id, name, title, department, email, phone, linkedin_url, decision_score) VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), $9) RETURNING id::text, name, COALESCE(title, ''), COALESCE(department, ''), decision_score`, a.workspaceIDFor(r), input.CompanyID, strings.TrimSpace(input.Name), strings.TrimSpace(input.Title), strings.TrimSpace(input.Department), strings.TrimSpace(input.Email), strings.TrimSpace(input.Phone), strings.TrimSpace(input.LinkedInURL), input.DecisionScore).Scan(&id, &name, &title, &department, &score)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to create person."); return }
+	writeJSON(w, http.StatusCreated, apiResponse{Data: map[string]any{"id": id, "name": name, "title": title, "department": department, "score": score.Int64}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) updatePerson(w http.ResponseWriter, r *http.Request) {
+	var input struct { Name *string `json:"name"`; Title *string `json:"title"`; Department *string `json:"department"`; Email *string `json:"email"`; Phone *string `json:"phone"`; LinkedInURL *string `json:"linkedinUrl"`; DecisionScore *int `json:"decisionScore"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid person payload."); return }
+	var id, name, title, department string; var score sql.NullInt64
+	err := a.db.QueryRowContext(r.Context(), `UPDATE people SET name = COALESCE($1, name), title = COALESCE($2, title), department = COALESCE($3, department), email = COALESCE($4, email), phone = COALESCE($5, phone), linkedin_url = COALESCE($6, linkedin_url), decision_score = COALESCE($7, decision_score), updated_at = now() WHERE id = $8 AND workspace_id = $9 RETURNING id::text, name, COALESCE(title, ''), COALESCE(department, ''), decision_score`, input.Name, input.Title, input.Department, input.Email, input.Phone, input.LinkedInURL, input.DecisionScore, r.PathValue("personID"), a.workspaceIDFor(r)).Scan(&id, &name, &title, &department, &score)
+	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Person not found."); return }
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update person."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": id, "name": name, "title": title, "department": department, "score": score.Int64}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) deletePerson(w http.ResponseWriter, r *http.Request) {
+	result, err := a.db.ExecContext(r.Context(), `DELETE FROM people WHERE id = $1 AND workspace_id = $2`, r.PathValue("personID"), a.workspaceIDFor(r))
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to delete person."); return }
+	count, _ := result.RowsAffected(); if count == 0 { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Person not found."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": r.PathValue("personID"), "deleted": true}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
 func (a *app) getCompany(w http.ResponseWriter, r *http.Request) {
 	var company Company
-	err := a.db.QueryRowContext(r.Context(), `SELECT id::text, name, COALESCE(domain, ''), COALESCE(industry, ''), COALESCE(location, ''), COALESCE(employee_range, ''), status, created_at, updated_at FROM companies WHERE id = $1 AND workspace_id = $2`, r.PathValue("companyID"), a.workspaceID).Scan(&company.ID, &company.Name, &company.Domain, &company.Industry, &company.Location, &company.EmployeeRange, &company.Status, &company.CreatedAt, &company.UpdatedAt)
+	err := a.db.QueryRowContext(r.Context(), `SELECT id::text, name, COALESCE(domain, ''), COALESCE(industry, ''), COALESCE(location, ''), COALESCE(employee_range, ''), status, created_at, updated_at FROM companies WHERE id = $1 AND workspace_id = $2`, r.PathValue("companyID"), a.workspaceIDFor(r)).Scan(&company.ID, &company.Name, &company.Domain, &company.Industry, &company.Location, &company.EmployeeRange, &company.Status, &company.CreatedAt, &company.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Company not found."); return }
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load company."); return }
 	companySignals := make([]map[string]any, 0)
-	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, title, COALESCE(description, ''), INITCAP(impact), COALESCE(detected_at, created_at) FROM signals WHERE workspace_id = $1 AND company_id = $2 ORDER BY COALESCE(detected_at, created_at) DESC LIMIT 20`, a.workspaceID, company.ID)
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, title, COALESCE(description, ''), INITCAP(impact), COALESCE(detected_at, created_at), COALESCE(confidence, 0) FROM signals WHERE workspace_id = $1 AND company_id = $2 ORDER BY COALESCE(detected_at, created_at) DESC LIMIT 20`, a.workspaceIDFor(r), company.ID)
 	if err == nil {
 		defer rows.Close()
-		for rows.Next() { var id, title, description, impact string; var detected time.Time; if err := rows.Scan(&id, &title, &description, &impact, &detected); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read company signals."); return }; companySignals = append(companySignals, map[string]any{"id": id, "type": title, "description": description, "impact": impact, "time": detected.Format(time.RFC3339)}) }
+		for rows.Next() { var id, title, description, impact string; var detected time.Time; var confidence float64; if err := rows.Scan(&id, &title, &description, &impact, &detected, &confidence); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read company signals."); return }; companySignals = append(companySignals, map[string]any{"id": id, "type": title, "description": description, "impact": impact, "time": detected.Format(time.RFC3339), "confidence": confidence}) }
 	}
 	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": company.ID, "name": company.Name, "domain": company.Domain, "industry": company.Industry, "location": company.Location, "employeeRange": company.EmployeeRange, "status": company.Status, "createdAt": company.CreatedAt, "updatedAt": company.UpdatedAt, "signals": companySignals}, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func (a *app) listSignals(w http.ResponseWriter, r *http.Request) {
 	query := "%" + strings.TrimSpace(r.URL.Query().Get("q")) + "%"
-	rows, err := a.db.QueryContext(r.Context(), `SELECT s.id::text, s.title, COALESCE(c.name, 'Unknown company'), COALESCE(s.description, ''), COALESCE(s.detected_at, s.created_at), INITCAP(s.impact), COALESCE(s.confidence, 0) FROM signals s LEFT JOIN companies c ON c.id = s.company_id WHERE s.workspace_id = $1 AND ($2 = '%%' OR s.title ILIKE $2 OR COALESCE(c.name, '') ILIKE $2 OR COALESCE(s.description, '') ILIKE $2) ORDER BY COALESCE(s.detected_at, s.created_at) DESC LIMIT 100`, a.workspaceID, query)
+	rows, err := a.db.QueryContext(r.Context(), `SELECT s.id::text, s.title, COALESCE(c.name, 'Unknown company'), COALESCE(s.description, ''), COALESCE(s.detected_at, s.created_at), INITCAP(s.impact), COALESCE(s.confidence, 0) FROM signals s LEFT JOIN companies c ON c.id = s.company_id WHERE s.workspace_id = $1 AND ($2 = '%%' OR s.title ILIKE $2 OR COALESCE(c.name, '') ILIKE $2 OR COALESCE(s.description, '') ILIKE $2) ORDER BY COALESCE(s.detected_at, s.created_at) DESC LIMIT 100`, a.workspaceIDFor(r), query)
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load signals."); return }
 	defer rows.Close()
 	data := make([]map[string]any, 0)
@@ -448,8 +509,33 @@ func (a *app) listSignals(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r), "total": len(data)}})
 }
 
+func (a *app) createSignal(w http.ResponseWriter, r *http.Request) {
+	var input struct { CompanyID *string `json:"companyId"`; SignalType string `json:"signalType"`; Title string `json:"title"`; Description string `json:"description"`; Impact string `json:"impact"`; Confidence *float64 `json:"confidence"`; SourceType string `json:"sourceType"`; SourceURL string `json:"sourceUrl"`; DetectedAt *time.Time `json:"detectedAt"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || strings.TrimSpace(input.Title) == "" { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "A signal title is required."); return }
+	if input.SignalType == "" { input.SignalType = "business_change" }; if input.Impact == "" { input.Impact = "medium" }
+	var id, title, description, impact string; var detected time.Time; var confidence sql.NullFloat64
+	err := a.db.QueryRowContext(r.Context(), `INSERT INTO signals (workspace_id, company_id, signal_type, title, description, impact, confidence, source_type, source_url, detected_at) VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, NULLIF($8, ''), NULLIF($9, ''), COALESCE($10, now())) RETURNING id::text, title, COALESCE(description, ''), INITCAP(impact), COALESCE(detected_at, created_at), confidence`, a.workspaceIDFor(r), input.CompanyID, input.SignalType, strings.TrimSpace(input.Title), strings.TrimSpace(input.Description), input.Impact, input.Confidence, strings.TrimSpace(input.SourceType), strings.TrimSpace(input.SourceURL), input.DetectedAt).Scan(&id, &title, &description, &impact, &detected, &confidence)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to create signal."); return }
+	writeJSON(w, http.StatusCreated, apiResponse{Data: map[string]any{"id": id, "type": title, "description": description, "time": detected.Format(time.RFC3339), "impact": impact, "confidence": confidence.Float64}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) updateSignal(w http.ResponseWriter, r *http.Request) {
+	var input struct { Title *string `json:"title"`; Description *string `json:"description"`; Impact *string `json:"impact"`; Confidence *float64 `json:"confidence"`; SourceURL *string `json:"sourceUrl"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid signal payload."); return }
+	var id, title, description, impact string; var detected time.Time; var confidence sql.NullFloat64
+	err := a.db.QueryRowContext(r.Context(), `UPDATE signals SET title = COALESCE($1, title), description = COALESCE($2, description), impact = COALESCE($3, impact), confidence = COALESCE($4, confidence), source_url = COALESCE($5, source_url) WHERE id = $6 AND workspace_id = $7 RETURNING id::text, title, COALESCE(description, ''), INITCAP(impact), COALESCE(detected_at, created_at), confidence`, input.Title, input.Description, input.Impact, input.Confidence, input.SourceURL, r.PathValue("signalID"), a.workspaceIDFor(r)).Scan(&id, &title, &description, &impact, &detected, &confidence)
+	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Signal not found."); return }; if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update signal."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": id, "type": title, "description": description, "time": detected.Format(time.RFC3339), "impact": impact, "confidence": confidence.Float64}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) deleteSignal(w http.ResponseWriter, r *http.Request) {
+	result, err := a.db.ExecContext(r.Context(), `DELETE FROM signals WHERE id = $1 AND workspace_id = $2`, r.PathValue("signalID"), a.workspaceIDFor(r))
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to delete signal."); return }; count, _ := result.RowsAffected(); if count == 0 { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Signal not found."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": r.PathValue("signalID"), "deleted": true}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
 func (a *app) listOpportunities(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.db.QueryContext(r.Context(), `SELECT o.id::text, COALESCE(c.name, ''), COALESCE(c.industry, ''), COALESCE(c.location, ''), COALESCE(o.score, 0), COALESCE(c.employee_range, ''), COALESCE(o.pipeline_stage, 'new') FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id WHERE o.workspace_id = $1 ORDER BY o.score DESC NULLS LAST LIMIT 100`, a.workspaceID)
+	rows, err := a.db.QueryContext(r.Context(), `SELECT o.id::text, COALESCE(c.name, ''), COALESCE(c.industry, ''), COALESCE(c.location, ''), COALESCE(o.score, 0), COALESCE(c.employee_range, ''), COALESCE(o.pipeline_stage, 'new') FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id WHERE o.workspace_id = $1 ORDER BY o.score DESC NULLS LAST LIMIT 100`, a.workspaceIDFor(r))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load opportunities."); return }
 	defer rows.Close()
 	data := make([]map[string]any, 0)
@@ -457,20 +543,45 @@ func (a *app) listOpportunities(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r), "total": len(data)}})
 }
 
+func (a *app) createOpportunity(w http.ResponseWriter, r *http.Request) {
+	var input struct { CompanyID *string `json:"companyId"`; PipelineStage string `json:"stage"`; Status string `json:"status"`; Score *int `json:"score"`; Priority string `json:"priority"`; ExpectedValue *float64 `json:"expectedValue"`; NextAction string `json:"nextAction"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid opportunity payload."); return }
+	if input.PipelineStage == "" { input.PipelineStage = "new" }; if input.Status == "" { input.Status = "open" }; if input.Priority == "" { input.Priority = "medium" }
+	var id, company, industry, location, employees, stage, status string; var score sql.NullInt64
+	err := a.db.QueryRowContext(r.Context(), `INSERT INTO opportunities (workspace_id, company_id, pipeline_stage, status, score, priority, expected_value, next_action) VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, '')) RETURNING id::text, COALESCE((SELECT name FROM companies WHERE id = company_id), ''), COALESCE((SELECT industry FROM companies WHERE id = company_id), ''), COALESCE((SELECT location FROM companies WHERE id = company_id), ''), COALESCE((SELECT employee_range FROM companies WHERE id = company_id), ''), pipeline_stage, status, score`, a.workspaceIDFor(r), input.CompanyID, input.PipelineStage, input.Status, input.Score, input.Priority, input.ExpectedValue, strings.TrimSpace(input.NextAction)).Scan(&id, &company, &industry, &location, &employees, &stage, &status, &score)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to create opportunity."); return }
+	writeJSON(w, http.StatusCreated, apiResponse{Data: map[string]any{"id": id, "company": company, "industry": industry, "location": location, "score": score.Int64, "employees": employees, "stage": stage, "status": status}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
 func (a *app) getOpportunity(w http.ResponseWriter, r *http.Request) {
 	var opportunity map[string]any = map[string]any{}
 	var id, company, industry, location, employees, stage, status string
 	var score int
-	err := a.db.QueryRowContext(r.Context(), `SELECT o.id::text, COALESCE(c.name, ''), COALESCE(c.industry, ''), COALESCE(c.location, ''), COALESCE(o.score, 0), COALESCE(c.employee_range, ''), o.pipeline_stage, o.status FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id WHERE o.id = $1 AND o.workspace_id = $2`, r.PathValue("opportunityID"), a.workspaceID).Scan(&id, &company, &industry, &location, &score, &employees, &stage, &status)
+	err := a.db.QueryRowContext(r.Context(), `SELECT o.id::text, COALESCE(c.name, ''), COALESCE(c.industry, ''), COALESCE(c.location, ''), COALESCE(o.score, 0), COALESCE(c.employee_range, ''), o.pipeline_stage, o.status FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id WHERE o.id = $1 AND o.workspace_id = $2`, r.PathValue("opportunityID"), a.workspaceIDFor(r)).Scan(&id, &company, &industry, &location, &score, &employees, &stage, &status)
 	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Opportunity not found."); return }
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load opportunity."); return }
 	opportunity["id"], opportunity["company"], opportunity["industry"], opportunity["location"], opportunity["score"], opportunity["employees"], opportunity["stage"], opportunity["status"] = id, company, industry, location, score, employees, stage, status
 	writeJSON(w, http.StatusOK, apiResponse{Data: opportunity, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
+func (a *app) updateOpportunity(w http.ResponseWriter, r *http.Request) {
+	var input struct { PipelineStage *string `json:"stage"`; Status *string `json:"status"`; Score *int `json:"score"`; Priority *string `json:"priority"`; ExpectedValue *float64 `json:"expectedValue"`; NextAction *string `json:"nextAction"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid opportunity payload."); return }
+	var id, company, industry, location, employees, stage, status string; var score sql.NullInt64
+	err := a.db.QueryRowContext(r.Context(), `UPDATE opportunities SET pipeline_stage = COALESCE($1, pipeline_stage), status = COALESCE($2, status), score = COALESCE($3, score), priority = COALESCE($4, priority), expected_value = COALESCE($5, expected_value), next_action = COALESCE($6, next_action), updated_at = now() WHERE id = $7 AND workspace_id = $8 RETURNING id::text, COALESCE((SELECT name FROM companies WHERE id = company_id), ''), COALESCE((SELECT industry FROM companies WHERE id = company_id), ''), COALESCE((SELECT location FROM companies WHERE id = company_id), ''), COALESCE((SELECT employee_range FROM companies WHERE id = company_id), ''), pipeline_stage, status, score`, input.PipelineStage, input.Status, input.Score, input.Priority, input.ExpectedValue, input.NextAction, r.PathValue("opportunityID"), a.workspaceIDFor(r)).Scan(&id, &company, &industry, &location, &employees, &stage, &status, &score)
+	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Opportunity not found."); return }; if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update opportunity."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": id, "company": company, "industry": industry, "location": location, "score": score.Int64, "employees": employees, "stage": stage, "status": status}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) deleteOpportunity(w http.ResponseWriter, r *http.Request) {
+	result, err := a.db.ExecContext(r.Context(), `DELETE FROM opportunities WHERE id = $1 AND workspace_id = $2`, r.PathValue("opportunityID"), a.workspaceIDFor(r))
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to delete opportunity."); return }; count, _ := result.RowsAffected(); if count == 0 { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Opportunity not found."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": r.PathValue("opportunityID"), "deleted": true}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
 func (a *app) listLists(w http.ResponseWriter, r *http.Request) {
 	query := "%" + strings.TrimSpace(r.URL.Query().Get("q")) + "%"
-	rows, err := a.db.QueryContext(r.Context(), `SELECT l.id::text, l.name, l.type, COUNT(i.id), l.updated_at FROM lists l LEFT JOIN list_items i ON i.list_id = l.id WHERE l.workspace_id = $1 AND ($2 = '%%' OR l.name ILIKE $2) GROUP BY l.id ORDER BY l.updated_at DESC`, a.workspaceID, query)
+	rows, err := a.db.QueryContext(r.Context(), `SELECT l.id::text, l.name, l.type, COUNT(i.id), l.updated_at FROM lists l LEFT JOIN list_items i ON i.list_id = l.id WHERE l.workspace_id = $1 AND ($2 = '%%' OR l.name ILIKE $2) GROUP BY l.id ORDER BY l.updated_at DESC`, a.workspaceIDFor(r), query)
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load lists."); return }
 	defer rows.Close()
 	data := make([]map[string]any, 0)
@@ -483,7 +594,7 @@ func (a *app) createList(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || strings.TrimSpace(input.Name) == "" { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "A list name is required."); return }
 	if input.Type == "" { input.Type = "manual" }
 	var id, name, listType string; var updated time.Time
-	err := a.db.QueryRowContext(r.Context(), `INSERT INTO lists (workspace_id, name, type) VALUES ($1, $2, $3) RETURNING id::text, name, type, updated_at`, a.workspaceID, strings.TrimSpace(input.Name), input.Type).Scan(&id, &name, &listType, &updated)
+	err := a.db.QueryRowContext(r.Context(), `INSERT INTO lists (workspace_id, name, type) VALUES ($1, $2, $3) RETURNING id::text, name, type, updated_at`, a.workspaceIDFor(r), strings.TrimSpace(input.Name), input.Type).Scan(&id, &name, &listType, &updated)
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to create list."); return }
 	writeJSON(w, http.StatusCreated, apiResponse{Data: map[string]any{"id": id, "name": name, "type": listType, "count": 0, "updated": updated.Format(time.RFC3339)}, Meta: map[string]any{"requestId": requestID(r)}})
 }
@@ -513,7 +624,7 @@ func (a *app) createCompany(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO companies (workspace_id, name, domain, industry, location, employee_range, status)
 		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), $7)
 		RETURNING id::text, name, COALESCE(domain, ''), COALESCE(industry, ''), COALESCE(location, ''), COALESCE(employee_range, ''), status, created_at, updated_at`,
-		a.workspaceID, strings.TrimSpace(input.Name), strings.TrimSpace(input.Domain), strings.TrimSpace(input.Industry), strings.TrimSpace(input.Location), strings.TrimSpace(input.EmployeeRange), input.Status,
+		a.workspaceIDFor(r), strings.TrimSpace(input.Name), strings.TrimSpace(input.Domain), strings.TrimSpace(input.Industry), strings.TrimSpace(input.Location), strings.TrimSpace(input.EmployeeRange), input.Status,
 	).Scan(&company.ID, &company.Name, &company.Domain, &company.Industry, &company.Location, &company.EmployeeRange, &company.Status, &company.CreatedAt, &company.UpdatedAt)
 	if err != nil {
 		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to create company.")

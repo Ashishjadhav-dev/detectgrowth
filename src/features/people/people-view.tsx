@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
-import { people } from "@/data/mock";
 import { listPeople, type ApiPerson } from "@/lib/api/people";
 import { SectionHeader } from "@/components/ui/patterns";
 
@@ -23,7 +22,7 @@ export function PeopleView() {
   }, [query]);
 
   const normalized = query.trim().toLowerCase();
-  const sourcePeople = apiPeople ?? people;
+  const sourcePeople = apiPeople ?? [];
   const filtered = sourcePeople.filter((person) => {
     const matchesQuery =
       !normalized ||
@@ -77,7 +76,7 @@ export function PeopleView() {
           ))}
           <div className="ml-auto text-sm text-muted">{filtered.length} contacts</div>
         </div>
-        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">People API unavailable; showing preview data.</div> : null}
+        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">People API unavailable. Start the Go API and try again.</div> : null}
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-[1.05fr_.95fr]">

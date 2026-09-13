@@ -20,9 +20,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { Score } from "@/components/ui/score";
 import { CompanyMark } from "@/components/companies/company-mark";
-import { opportunities, people, signals } from "@/data/mock";
 import { SectionHeader } from "@/components/ui/patterns";
 import { listCompanies, type ApiCompany } from "@/lib/api/companies";
+import { listPeople, type ApiPerson } from "@/lib/api/people";
+import { listSignals, type ApiSignal } from "@/lib/api/signals";
 
 const tabs = ["Companies", "People", "Signals", "Saved Views"] as const;
 const quickFilters = [
@@ -40,14 +41,18 @@ export function DiscoverView() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterFocus, setFilterFocus] = useState<"All" | "High fit" | "High intent" | "Recently active">("All");
   const [apiCompanies, setApiCompanies] = useState<ApiCompany[] | null>(null);
+  const [apiPeople, setApiPeople] = useState<ApiPerson[] | null>(null);
+  const [apiSignals, setApiSignals] = useState<ApiSignal[] | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    listCompanies(query)
-      .then((companies) => {
+    Promise.all([listCompanies(query), listPeople(query), listSignals(query)])
+      .then(([companies, people, signals]) => {
         if (!cancelled) {
           setApiCompanies(companies);
+          setApiPeople(people);
+          setApiSignals(signals);
           setApiError(null);
         }
       })
@@ -61,14 +66,14 @@ export function DiscoverView() {
 
   const normalized = query.trim().toLowerCase();
 
-  const sourceCompanies = apiCompanies?.map((company) => ({
+  const sourceCompanies = (apiCompanies ?? []).map((company) => ({
     id: company.id,
     company: company.name,
     industry: company.industry || "Unknown",
     location: company.location || "Unknown",
     score: 0,
     signals: [company.status === "active" ? "Live account" : company.status],
-  })) ?? opportunities;
+  }));
 
   const companyRows = sourceCompanies.filter((opportunity) => {
     const matchesQuery =
@@ -84,7 +89,7 @@ export function DiscoverView() {
     return matchesQuery && matchesFocus;
   });
 
-  const peopleRows = people.filter((person) => {
+  const peopleRows = (apiPeople ?? []).filter((person) => {
     const matchesQuery =
       !normalized ||
       [person.name, person.title, person.department, String(person.score)].some((value) => value.toLowerCase().includes(normalized));
@@ -96,7 +101,7 @@ export function DiscoverView() {
     return matchesQuery && matchesFocus;
   });
 
-  const signalRows = signals.filter((signal) => {
+  const signalRows = (apiSignals ?? []).filter((signal) => {
     const matchesQuery =
       !normalized ||
       [signal.type, signal.company, signal.description, signal.impact].some((value) => value.toLowerCase().includes(normalized));
@@ -202,7 +207,7 @@ export function DiscoverView() {
             ))}
           </div>
         </div>
-        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">API unavailable; showing local preview data. Start the Go API to load live companies.</div> : null}
+        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Discovery API unavailable. Start the Go API and try again.</div> : null}
       </Card>
 
       {selectedIds.length > 0 && activeTab === "Companies" ? (
@@ -287,7 +292,7 @@ export function DiscoverView() {
                             />
                           </td>
                           <td className="table-cell">
-                            <Link href={`/opportunities/${opportunity.id}`} className="flex items-center gap-3">
+                            <Link href={`/companies/${opportunity.id}`} className="flex items-center gap-3">
                               <CompanyMark name={opportunity.company} />
                               <div>
                                 <div className="font-semibold text-ink">{opportunity.company}</div>

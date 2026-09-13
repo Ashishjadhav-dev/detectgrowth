@@ -9,13 +9,6 @@ import { SectionHeader } from "@/components/ui/patterns";
 import { createList, listLists, type ApiList } from "@/lib/api/lists";
 
 const folders = ["All Lists", "Smart Lists", "Watchlists", "Saved Searches"] as const;
-const rows = [
-  { name: "Hot Prospects", type: "Manual", count: 23, updated: "Aug 15, 2026" },
-  { name: "Meta Ads Prospects · Bangalore", type: "Smart", count: 47, updated: "Aug 15, 2026" },
-  { name: "E-commerce Leads", type: "Manual", count: 31, updated: "Aug 14, 2026" },
-  { name: "Follow Up Later", type: "Manual", count: 12, updated: "Aug 13, 2026" },
-];
-
 export function ListsView() {
   const [query, setQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState<(typeof folders)[number]>("All Lists");
@@ -24,12 +17,12 @@ export function ListsView() {
   useEffect(() => { listLists(query).then(setApiLists).catch((error: Error) => setApiError(error.message)); }, [query]);
   const normalized = query.trim().toLowerCase();
 
-  const sourceRows = apiLists ?? rows;
+  const sourceRows = apiLists ?? [];
   const filtered = sourceRows.filter((row) => {
     const matchesQuery = !normalized || [row.name, row.type, row.updated, String(row.count)].some((value) => value.toLowerCase().includes(normalized));
     const matchesFolder =
       activeFolder === "All Lists" ||
-      (activeFolder === "Smart Lists" && row.type === "Smart") ||
+      (activeFolder === "Smart Lists" && row.type.toLowerCase() === "smart") ||
       (activeFolder === "Watchlists" && row.name.toLowerCase().includes("follow")) ||
       (activeFolder === "Saved Searches" && row.name.toLowerCase().includes("meta"));
     return matchesQuery && matchesFolder;
@@ -65,7 +58,7 @@ export function ListsView() {
                 }`}
               >
                 <span>{folder}</span>
-                <span className="text-xs">{index === 0 ? rows.length : index + 1}</span>
+                <span className="text-xs">{index === 0 ? apiLists?.length ?? 0 : filtered.filter((row) => index === 1 ? row.type.toLowerCase() === "smart" : index === 2 ? row.name.toLowerCase().includes("follow") : row.name.toLowerCase().includes("search")).length}</span>
               </button>
             ))}
           </div>
@@ -95,7 +88,7 @@ export function ListsView() {
                 </button>
               ))}
             </div>
-            {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Lists API unavailable; showing preview data.</div> : null}
+            {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Lists API unavailable. Start the Go API and try again.</div> : null}
           </div>
 
           {filtered.length > 0 ? (
@@ -145,12 +138,7 @@ export function ListsView() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Smart lists", "12 active queries", "High signal"],
-          ["Watchlists", "9 monitored accounts", "Live updates"],
-          ["Saved searches", "27 query templates", "Filter re-use"],
-          ["Alerts", "18 notifications", "Configured digests"],
-        ].map(([title, value, hint]) => (
+        {[["Lists in workspace", `${apiLists?.length ?? 0} records`, "PostgreSQL"], ["Smart lists", `${apiLists?.filter((list) => list.type.toLowerCase() === "smart").length ?? 0} records`, "Database-backed"], ["Watchlists", `${apiLists?.filter((list) => list.name.toLowerCase().includes("watch")).length ?? 0} records`, "Database-backed"], ["Search results", `${filtered.length} visible`, "Current filter"]].map(([title, value, hint]) => (
           <Card key={title} className="glass-card p-4">
             <div className="flex items-start justify-between gap-3">
               <div>

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
-import { signals } from "@/data/mock";
 import { SectionHeader } from "@/components/ui/patterns";
 import { listSignals, type ApiSignal } from "@/lib/api/signals";
 
@@ -21,7 +20,7 @@ export function SignalsView() {
   }, [query]);
   const normalized = query.trim().toLowerCase();
 
-  const filtered = (apiSignals ?? signals).filter((signal) => {
+  const filtered = (apiSignals ?? []).filter((signal) => {
     const matchesQuery =
       !normalized ||
       [signal.type, signal.company, signal.description, signal.impact, String(signal.confidence)].some((value) =>
@@ -65,7 +64,7 @@ export function SignalsView() {
           ))}
           <div className="ml-auto text-sm text-muted">{filtered.length} signals</div>
         </div>
-        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Signals API unavailable; showing preview data.</div> : null}
+        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Signals API unavailable. Start the Go API and try again.</div> : null}
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_.85fr]">

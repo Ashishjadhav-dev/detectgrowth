@@ -8,22 +8,8 @@ import { Card } from "@/components/ui/card";
 import { CompanyMark } from "@/components/companies/company-mark";
 import { Score } from "@/components/ui/score";
 import { Progress } from "@/components/ui/progress";
-import { signals } from "@/data/mock";
 import { SectionHeader } from "@/components/ui/patterns";
 import { getCompany, type ApiCompany } from "@/lib/api/companies";
-
-const metrics = [
-  ["Growth", "95", "+12"],
-  ["Active signals", "24", "+6"],
-  ["People found", "18", "+4"],
-  ["Confidence", "96", "+2"],
-];
-
-const people = [
-  ["Aditi Rao", "Founder", "Decision maker"],
-  ["Rahul Sharma", "Head of Marketing", "Warm contact"],
-  ["Priya Kapoor", "Growth Lead", "High intent"],
-];
 
 const tabs = ["Overview", "Growth", "Signals", "People", "Tech", "Funding", "Notes"] as const;
 
@@ -32,7 +18,8 @@ export function CompanyDetail({ id }: { id: string }) {
   const [company, setCompany] = useState<ApiCompany | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   useEffect(() => { getCompany(id).then(setCompany).catch((error: Error) => setApiError(error.message)); }, [id]);
-  const liveSignals = company?.signals ?? signals;
+  const liveSignals = company?.signals ?? [];
+  const averageConfidence = liveSignals.length ? Math.round(liveSignals.reduce((sum, signal) => sum + (signal.confidence ?? 0), 0) / liveSignals.length) : 0;
 
   return (
     <div className="space-y-5">
@@ -58,22 +45,19 @@ export function CompanyDetail({ id }: { id: string }) {
       </div>
 
       <Card className="glass-card p-5">
-        {apiError ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Company API unavailable; showing preview data.</div> : null}
+        {apiError ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Company API unavailable. Start the Go API and try again.</div> : null}
         <div className="flex flex-wrap items-start gap-4">
-          <CompanyMark name={company?.name ?? "ABC Fashion"} />
+          <CompanyMark name={company?.name ?? "Company"} />
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Company 360</div>
-            <h1 className="page-title mt-2">{company?.name ?? "ABC Fashion"}</h1>
-            <p className="mt-1 text-sm text-muted">{company?.industry || "E-commerce"} · {company?.location || "Bangalore, India"} · <span className="text-primary">{company?.domain || "abcfashion.com"}</span></p>
+            <h1 className="page-title mt-2">{company?.name ?? "Loading company…"}</h1>
+            <p className="mt-1 text-sm text-muted">{company?.industry || "—"} · {company?.location || "—"} · <span className="text-primary">{company?.domain || "—"}</span></p>
           </div>
-          <div className="text-right">
-            <Score value={95} />
-            <Badge className="mt-2 bg-emerald-50 text-success">High fit</Badge>
-          </div>
+          <div className="text-right"><Badge className="bg-primary-soft text-primary">{company?.status || "loading"}</Badge></div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {metrics.map(([label, value, delta]) => (
+          {[ ["Active signals", String(liveSignals.length), "from PostgreSQL"], ["People found", "—", "not enriched"], ["Confidence", averageConfidence ? `${averageConfidence}%` : "—", "from signals"], ["Last updated", company?.updatedAt ? new Date(company.updatedAt).toLocaleDateString() : "—", "database record"] ].map(([label, value, delta]) => (
             <div key={label} className="rounded-2xl border border-border bg-white p-4">
               <div className="text-xs uppercase tracking-[0.12em] text-subtle">{label}</div>
               <div className="mt-2 text-2xl font-semibold text-ink">{value}</div>
@@ -103,13 +87,13 @@ export function CompanyDetail({ id }: { id: string }) {
               <div className="rounded-2xl border border-border bg-white p-4">
                 <div className="text-sm font-medium text-ink">Business summary</div>
                 <p className="mt-2 text-sm leading-6 text-muted">
-                  ABC Fashion is a D2C fashion brand with growing online traction, new product launches, and increasing hiring activity.
+                  {company?.name || "This company"} is monitored from the account and signal data currently available in your workspace.
                 </p>
               </div>
               <div className="rounded-2xl border border-border bg-white p-4">
                 <div className="text-sm font-medium text-ink">Highlights</div>
                 <div className="mt-3 space-y-2">
-                  {["Strong social presence", "Active ads spend", "Recent product launch", "Hiring marketing roles"].map((item) => (
+                  {(liveSignals.length ? liveSignals.slice(0, 4).map((signal) => signal.type) : ["No signals collected yet"]).map((item) => (
                     <div key={item} className="flex items-center gap-2 text-sm text-muted">
                       <span className="size-1.5 rounded-full bg-primary" />
                       {item}
@@ -124,14 +108,7 @@ export function CompanyDetail({ id }: { id: string }) {
             </div>
           )}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {[
-              ["Employees", "75-100"],
-              ["Founded", "2013"],
-              ["Revenue", "$5M-$10M"],
-              ["Type", "Private"],
-              ["Industry", "E-commerce"],
-              ["Location", "Bangalore, India"],
-            ].map(([label, value]) => (
+            {[["Employees", company?.employeeRange || "—"], ["Industry", company?.industry || "—"], ["Location", company?.location || "—"], ["Domain", company?.domain || "—"], ["Status", company?.status || "—"], ["Updated", company?.updatedAt ? new Date(company.updatedAt).toLocaleString() : "—"]].map(([label, value]) => (
               <div key={label} className="rounded-2xl border border-border bg-white p-4">
                 <div className="text-xs uppercase tracking-[0.12em] text-subtle">{label}</div>
                 <div className="mt-2 text-sm font-medium text-ink">{value}</div>
@@ -143,13 +120,7 @@ export function CompanyDetail({ id }: { id: string }) {
         <Card className="glass-card p-5">
           <SectionHeader title="Growth score" description="Explainable signals and momentum behind the score." />
           <div className="space-y-3">
-            {[
-              ["Growth signals", 92],
-              ["Marketing activity", 82],
-              ["Product fit", 74],
-              ["Online presence", 68],
-              ["Data confidence", 64],
-            ].map(([label, value]) => (
+            {(liveSignals.length ? liveSignals.slice(0, 5).map((signal) => [signal.type, Math.round(signal.confidence ?? 0)] as [string, number]) : [["Signal coverage", 0] as [string, number]]).map(([label, value]) => (
               <div key={label} className="space-y-2 rounded-2xl border border-border bg-white p-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium text-ink">{label}</span>
@@ -186,23 +157,7 @@ export function CompanyDetail({ id }: { id: string }) {
 
         <Card className="glass-card p-5">
           <SectionHeader title="People" description="The buyer committee and likely decision makers." />
-          <div className="space-y-2">
-            {people.map(([name, title, context]) => (
-              <div key={name} className="rounded-2xl border border-border bg-white p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-ink">{name}</div>
-                    <div className="text-xs text-muted">{title}</div>
-                    <div className="mt-1 text-xs text-muted">{context}</div>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted">
-                    <Mail className="size-4" />
-                    <Phone className="size-4" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <div className="space-y-2"><div className="rounded-2xl border border-dashed border-border bg-elevated p-4 text-sm text-muted">People enrichment is not available for this account yet.</div></div>
           <Button className="mt-4 w-full">
             <Users className="size-4" />
             View all contacts

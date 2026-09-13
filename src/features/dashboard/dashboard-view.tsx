@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Score } from "@/components/ui/score";
 import { Sparkline } from "@/components/charts/sparkline";
-import { opportunities, signals } from "@/data/mock";
 import { getDashboardData, updateDashboardTask, type DashboardData } from "@/lib/api/dashboard";
 import {
   AvatarStack,
@@ -35,34 +34,6 @@ import {
   SmallStat,
   SummaryPill,
 } from "@/components/ui/patterns";
-
-const watchlist = [
-  { name: "Cursor", score: 92, delta: "+12" },
-  { name: "Anthropic", score: 87, delta: "+11" },
-  { name: "Rippling", score: 79, delta: "+8" },
-  { name: "Mistral", score: 66, delta: "+9" },
-];
-
-const tasks = [
-  ["Follow up with Databricks", "High", "Today"],
-  ["Review 15 new signals", "Medium", "Today"],
-  ["Call Sarah at Notion", "High", "Tomorrow"],
-  ["Prepare Acme Corp proposal", "Medium", "Tomorrow"],
-  ["Connect with new leads", "Low", "May 30"],
-];
-
-const insights = [
-  "Stripe raised $4.5B Series I two hours ago",
-  "13 companies entered your ICP yesterday",
-  "28 marketing roles opened across target accounts",
-];
-
-const activity = [
-  "You added 32 companies to AI Startup lists",
-  "Sarah commented on Acme Corp",
-  "You starred product-led growth signals",
-  "Deal closed: NITRO - $120K",
-];
 
 const moduleCards = [
   {
@@ -109,22 +80,6 @@ const moduleCards = [
   },
 ];
 
-const pipelineColumns = [
-  { title: "New", count: "12", value: "$3.2M" },
-  { title: "Qualified", count: "18", value: "$5.1M" },
-  { title: "Proposal", count: "13", value: "$2.9M" },
-  { title: "Negotiation", count: "6", value: "$1.3M" },
-  { title: "Won", count: "8", value: "$840K" },
-];
-
-const intelligenceRows = [
-  ["Databricks", "95", "+18"],
-  ["Ramp", "93", "+14"],
-  ["Notion", "91", "+13"],
-  ["Vercel", "90", "+11"],
-  ["Canoe", "86", "+9"],
-];
-
 export function DashboardView() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
@@ -153,14 +108,14 @@ export function DashboardView() {
 
   const dashboardSummary = dashboard?.summary;
   const metricDelta = dashboardSummary?.growthDelta ?? "—";
-  const visibleInsights = dashboard?.insights ?? insights.map((text, index) => ({ id: `preview-insight-${index}`, text, age: `${index + 1}h ago` }));
-  const visibleTasks = dashboard?.tasks ?? tasks.map(([label, urgency, due], index) => ({ id: `preview-task-${index}`, label, urgency, due, completed: false }));
-  const visibleActivity = dashboard?.activity ?? activity.map((text, index) => ({ id: `preview-activity-${index}`, text, age: "Just now" }));
-  const visibleSignals = dashboard?.signals ?? signals.slice(0, 5).map((signal) => ({ id: signal.id, type: signal.type, company: signal.company, confidence: signal.confidence, impact: signal.impact }));
-  const visibleOpportunities = dashboard?.opportunities ?? opportunities.slice(0, 5).map((opportunity, index) => ({ id: opportunity.id, company: opportunity.company, industry: opportunity.industry, score: opportunity.score, employees: String(2_400 - index * 350), signal: opportunity.signals[0] }));
-  const visibleWatchlist = dashboard?.watchlist ?? watchlist;
-  const visiblePipeline = dashboard?.pipeline ?? pipelineColumns;
-  const visibleTrending = dashboard?.trending ?? intelligenceRows.map(([name, score, delta]) => ({ name, score, delta }));
+  const visibleInsights = dashboard?.insights ?? [];
+  const visibleTasks = dashboard?.tasks ?? [];
+  const visibleActivity = dashboard?.activity ?? [];
+  const visibleSignals = dashboard?.signals ?? [];
+  const visibleOpportunities = dashboard?.opportunities ?? [];
+  const visibleWatchlist = dashboard?.watchlist ?? [];
+  const visiblePipeline = dashboard?.pipeline ?? [];
+  const visibleTrending = dashboard?.trending ?? [];
 
   return (
     <div className="space-y-6">
