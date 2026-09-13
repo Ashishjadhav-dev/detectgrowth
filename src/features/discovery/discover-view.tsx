@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Bookmark,
@@ -22,6 +22,7 @@ import { Score } from "@/components/ui/score";
 import { CompanyMark } from "@/components/companies/company-mark";
 import { opportunities, people, signals } from "@/data/mock";
 import { SectionHeader } from "@/components/ui/patterns";
+import { listCompanies, type ApiCompany } from "@/lib/api/companies";
 
 const tabs = ["Companies", "People", "Signals", "Saved Views"] as const;
 const quickFilters = [
@@ -38,10 +39,38 @@ export function DiscoverView() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Companies");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterFocus, setFilterFocus] = useState<"All" | "High fit" | "High intent" | "Recently active">("All");
+  const [apiCompanies, setApiCompanies] = useState<ApiCompany[] | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listCompanies(query)
+      .then((companies) => {
+        if (!cancelled) {
+          setApiCompanies(companies);
+          setApiError(null);
+        }
+      })
+      .catch((error: Error) => {
+        if (!cancelled) setApiError(error.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
 
   const normalized = query.trim().toLowerCase();
 
-  const companyRows = opportunities.filter((opportunity) => {
+  const sourceCompanies = apiCompanies?.map((company) => ({
+    id: company.id,
+    company: company.name,
+    industry: company.industry || "Unknown",
+    location: company.location || "Unknown",
+    score: 0,
+    signals: [company.status === "active" ? "Live account" : company.status],
+  })) ?? opportunities;
+
+  const companyRows = sourceCompanies.filter((opportunity) => {
     const matchesQuery =
       !normalized ||
       [opportunity.company, opportunity.industry, opportunity.location, ...opportunity.signals].some((value) =>
@@ -173,6 +202,7 @@ export function DiscoverView() {
             ))}
           </div>
         </div>
+        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">API unavailable; showing local preview data. Start the Go API to load live companies.</div> : null}
       </Card>
 
       {selectedIds.length > 0 && activeTab === "Companies" ? (
