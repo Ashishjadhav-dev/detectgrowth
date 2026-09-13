@@ -75,9 +75,10 @@ func main() {
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
 	mux.HandleFunc("GET /api/v1/dashboard/summary", api.dashboardSummaryHandler)
-	mux.HandleFunc("GET /api/v1/dashboard/insights", dashboardInsightsHandler)
-	mux.HandleFunc("GET /api/v1/dashboard/tasks", dashboardTasksHandler)
-	mux.HandleFunc("GET /api/v1/dashboard/activity", dashboardActivityHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/insights", api.dashboardInsightsHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/tasks", api.dashboardTasksHandler)
+	mux.HandleFunc("PATCH /api/v1/dashboard/tasks/{taskID}", api.updateDashboardTaskHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/activity", api.dashboardActivityHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/signals", api.dashboardSignalsHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/opportunities", api.dashboardOpportunitiesHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/watchlist", api.dashboardWatchlistHandler)
@@ -223,40 +224,43 @@ func (a *app) dashboardTrendingHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
-func dashboardInsightsHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, apiResponse{
-		Data: []map[string]string{
-			{"text": "Stripe raised $4.5B Series I two hours ago", "age": "1h ago"},
-			{"text": "13 companies entered your ICP yesterday", "age": "2h ago"},
-			{"text": "28 marketing roles opened across target accounts", "age": "3h ago"},
-		},
-		Meta: map[string]any{"requestId": requestID(r)},
-	})
+func (a *app) dashboardInsightsHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, body, created_at FROM dashboard_insights WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 10`, a.workspaceID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load insights."); return }
+	defer rows.Close()
+	data := make([]map[string]string, 0)
+	for rows.Next() { var id, body string; var created time.Time; if err := rows.Scan(&id, &body, &created); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read insights."); return }; data = append(data, map[string]string{"id": id, "text": body, "age": created.Format(time.RFC3339)}) }
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
-func dashboardTasksHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, apiResponse{
-		Data: []map[string]any{
-			{"label": "Follow up with Databricks", "urgency": "High", "due": "Today", "completed": false},
-			{"label": "Review 15 new signals", "urgency": "Medium", "due": "Today", "completed": false},
-			{"label": "Call Sarah at Notion", "urgency": "High", "due": "Tomorrow", "completed": false},
-			{"label": "Prepare Acme Corp proposal", "urgency": "Medium", "due": "Tomorrow", "completed": false},
-			{"label": "Connect with new leads", "urgency": "Low", "due": "May 30", "completed": false},
-		},
-		Meta: map[string]any{"requestId": requestID(r)},
-	})
+func (a *app) dashboardTasksHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, label, urgency, due, completed FROM tasks WHERE workspace_id = $1 ORDER BY completed, created_at DESC LIMIT 25`, a.workspaceID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load tasks."); return }
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() { var id, label, urgency, due string; var completed bool; if err := rows.Scan(&id, &label, &urgency, &due, &completed); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read tasks."); return }; data = append(data, map[string]any{"id": id, "label": label, "urgency": urgency, "due": due, "completed": completed}) }
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
-func dashboardActivityHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, apiResponse{
-		Data: []map[string]string{
-			{"text": "You added 32 companies to AI Startup lists", "age": "Just now"},
-			{"text": "Sarah commented on Acme Corp", "age": "12m ago"},
-			{"text": "You starred product-led growth signals", "age": "1h ago"},
-			{"text": "Deal closed: NITRO - $120K", "age": "2h ago"},
-		},
-		Meta: map[string]any{"requestId": requestID(r)},
-	})
+func (a *app) updateDashboardTaskHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct { Completed *bool `json:"completed"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input.Completed == nil { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "completed is required."); return }
+	var task map[string]any = map[string]any{}
+	var id, label, urgency, due string; var completed bool
+	err := a.db.QueryRowContext(r.Context(), `UPDATE tasks SET completed = $1, updated_at = now() WHERE id = $2 AND workspace_id = $3 RETURNING id::text, label, urgency, due, completed`, *input.Completed, r.PathValue("taskID"), a.workspaceID).Scan(&id, &label, &urgency, &due, &completed)
+	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Task not found."); return }
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update task."); return }
+	task["id"], task["label"], task["urgency"], task["due"], task["completed"] = id, label, urgency, due, completed
+	writeJSON(w, http.StatusOK, apiResponse{Data: task, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) dashboardActivityHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, body, created_at FROM activity_events WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 10`, a.workspaceID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load activity."); return }
+	defer rows.Close()
+	data := make([]map[string]string, 0)
+	for rows.Next() { var id, body string; var created time.Time; if err := rows.Scan(&id, &body, &created); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read activity."); return }; data = append(data, map[string]string{"id": id, "text": body, "age": created.Format(time.RFC3339)}) }
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func (a *app) listCompanies(w http.ResponseWriter, r *http.Request) {

@@ -10,9 +10,9 @@ export type DashboardSummary = {
   growthDelta: string;
 };
 
-export type DashboardInsight = { text: string; age: string };
-export type DashboardTask = { label: string; urgency: string; due: string; completed: boolean };
-export type DashboardActivity = { text: string; age: string };
+export type DashboardInsight = { id: string; text: string; age: string };
+export type DashboardTask = { id: string; label: string; urgency: string; due: string; completed: boolean };
+export type DashboardActivity = { id: string; text: string; age: string };
 export type DashboardSignal = { id: string; type: string; company: string; confidence: number; impact: string };
 export type DashboardOpportunity = { id: string; company: string; industry: string; score: number; employees: string; signal: string };
 export type DashboardWatchlist = { name: string; score: number; delta: string };
@@ -45,4 +45,11 @@ export function getDashboardData() {
   ]).then(([summary, insights, tasks, activity, signals, opportunities, watchlist, pipeline, trending]): DashboardData => ({
     summary, insights, tasks, activity, signals, opportunities, watchlist, pipeline, trending,
   }));
+}
+
+export function updateDashboardTask(id: string, completed: boolean) {
+  return apiRequest<DashboardTask>(`/api/v1/dashboard/tasks/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ completed }),
+  });
 }

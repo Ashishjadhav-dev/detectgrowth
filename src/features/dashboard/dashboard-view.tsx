@@ -25,7 +25,7 @@ import { Card } from "@/components/ui/card";
 import { Score } from "@/components/ui/score";
 import { Sparkline } from "@/components/charts/sparkline";
 import { opportunities, signals } from "@/data/mock";
-import { getDashboardData, type DashboardData } from "@/lib/api/dashboard";
+import { getDashboardData, updateDashboardTask, type DashboardData } from "@/lib/api/dashboard";
 import {
   AvatarStack,
   DonutChart,
@@ -136,9 +136,9 @@ export function DashboardView() {
   }, []);
 
   const dashboardSummary = dashboard?.summary;
-  const visibleInsights = dashboard?.insights ?? insights.map((text, index) => ({ text, age: `${index + 1}h ago` }));
-  const visibleTasks = dashboard?.tasks ?? tasks.map(([label, urgency, due]) => ({ label, urgency, due, completed: false }));
-  const visibleActivity = dashboard?.activity ?? activity.map((text) => ({ text, age: "Just now" }));
+  const visibleInsights = dashboard?.insights ?? insights.map((text, index) => ({ id: `preview-insight-${index}`, text, age: `${index + 1}h ago` }));
+  const visibleTasks = dashboard?.tasks ?? tasks.map(([label, urgency, due], index) => ({ id: `preview-task-${index}`, label, urgency, due, completed: false }));
+  const visibleActivity = dashboard?.activity ?? activity.map((text, index) => ({ id: `preview-activity-${index}`, text, age: "Just now" }));
   const visibleSignals = dashboard?.signals ?? signals.slice(0, 5).map((signal) => ({ id: signal.id, type: signal.type, company: signal.company, confidence: signal.confidence, impact: signal.impact }));
   const visibleOpportunities = dashboard?.opportunities ?? opportunities.slice(0, 5).map((opportunity, index) => ({ id: opportunity.id, company: opportunity.company, industry: opportunity.industry, score: opportunity.score, employees: String(2_400 - index * 350), signal: opportunity.signals[0] }));
   const visibleWatchlist = dashboard?.watchlist ?? watchlist;
@@ -276,7 +276,14 @@ export function DashboardView() {
           <div className="space-y-2">
             {visibleTasks.map((task) => (
               <label key={task.label} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
-                <input type="checkbox" defaultChecked={task.completed} className="size-4 rounded border-border text-primary" />
+                <input
+                  type="checkbox"
+                  defaultChecked={task.completed}
+                  onChange={(event) => {
+                    if (!task.id.startsWith("preview-")) void updateDashboardTask(task.id, event.target.checked);
+                  }}
+                  className="size-4 rounded border-border text-primary"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-ink">{task.label}</div>
                   <div className="mt-1 flex items-center gap-2 text-xs text-muted">
