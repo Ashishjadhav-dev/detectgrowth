@@ -76,6 +76,8 @@ func main() {
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
 	mux.HandleFunc("GET /api/v1/people", api.listPeople)
 	mux.HandleFunc("GET /api/v1/signals", api.listSignals)
+	mux.HandleFunc("GET /api/v1/opportunities", api.listOpportunities)
+	mux.HandleFunc("GET /api/v1/opportunities/{opportunityID}", api.getOpportunity)
 	mux.HandleFunc("GET /api/v1/dashboard/summary", api.dashboardSummaryHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/insights", api.dashboardInsightsHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/tasks", api.dashboardTasksHandler)
@@ -336,6 +338,26 @@ func (a *app) listSignals(w http.ResponseWriter, r *http.Request) {
 	data := make([]map[string]any, 0)
 	for rows.Next() { var id, title, company, description, impact string; var timeValue time.Time; var confidence float64; if err := rows.Scan(&id, &title, &company, &description, &timeValue, &impact, &confidence); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read signals."); return }; data = append(data, map[string]any{"id": id, "type": title, "company": company, "description": description, "time": timeValue.Format(time.RFC3339), "impact": impact, "confidence": confidence}) }
 	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r), "total": len(data)}})
+}
+
+func (a *app) listOpportunities(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), `SELECT o.id::text, COALESCE(c.name, ''), COALESCE(c.industry, ''), COALESCE(c.location, ''), COALESCE(o.score, 0), COALESCE(c.employee_range, ''), COALESCE(o.pipeline_stage, 'new') FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id WHERE o.workspace_id = $1 ORDER BY o.score DESC NULLS LAST LIMIT 100`, a.workspaceID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load opportunities."); return }
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() { var id, company, industry, location, employees, stage string; var score int; if err := rows.Scan(&id, &company, &industry, &location, &score, &employees, &stage); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read opportunities."); return }; data = append(data, map[string]any{"id": id, "company": company, "industry": industry, "location": location, "score": score, "employees": employees, "stage": stage}) }
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r), "total": len(data)}})
+}
+
+func (a *app) getOpportunity(w http.ResponseWriter, r *http.Request) {
+	var opportunity map[string]any = map[string]any{}
+	var id, company, industry, location, employees, stage, status string
+	var score int
+	err := a.db.QueryRowContext(r.Context(), `SELECT o.id::text, COALESCE(c.name, ''), COALESCE(c.industry, ''), COALESCE(c.location, ''), COALESCE(o.score, 0), COALESCE(c.employee_range, ''), o.pipeline_stage, o.status FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id WHERE o.id = $1 AND o.workspace_id = $2`, r.PathValue("opportunityID"), a.workspaceID).Scan(&id, &company, &industry, &location, &score, &employees, &stage, &status)
+	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Opportunity not found."); return }
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load opportunity."); return }
+	opportunity["id"], opportunity["company"], opportunity["industry"], opportunity["location"], opportunity["score"], opportunity["employees"], opportunity["stage"], opportunity["status"] = id, company, industry, location, score, employees, stage, status
+	writeJSON(w, http.StatusOK, apiResponse{Data: opportunity, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func (a *app) createCompany(w http.ResponseWriter, r *http.Request) {

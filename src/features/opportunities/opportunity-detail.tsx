@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Bookmark, Download, Mail, MoreHorizontal, Phone, Target, TrendingUp, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Score } from "@/components/ui/score";
 import { CompanyMark } from "@/components/companies/company-mark";
 import { SectionHeader } from "@/components/ui/patterns";
+import { getOpportunity, type ApiOpportunity } from "@/lib/api/opportunities";
 
 const scoreParts = [
   ["Growth Signals", 92, "+22"],
@@ -35,8 +36,14 @@ const contacts = [
 
 const tabs = ["Overview", "Signals", "People", "Research", "Notes", "Activity"] as const;
 
-export function OpportunityDetail() {
+export function OpportunityDetail({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Overview");
+  const [opportunity, setOpportunity] = useState<ApiOpportunity | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getOpportunity(id).then(setOpportunity).catch((error: Error) => setApiError(error.message));
+  }, [id]);
 
   return (
     <div className="space-y-5">
@@ -61,17 +68,18 @@ export function OpportunityDetail() {
       </div>
 
       <Card className="glass-card p-5">
+        {apiError ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Opportunity API unavailable; showing preview data.</div> : null}
         <div className="flex flex-wrap items-start gap-4">
-          <CompanyMark name="ABC Fashion" />
+          <CompanyMark name={opportunity?.company ?? "ABC Fashion"} />
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Company 360</div>
-            <h1 className="page-title mt-2">ABC Fashion</h1>
+            <h1 className="page-title mt-2">{opportunity?.company ?? "ABC Fashion"}</h1>
             <p className="mt-1 text-sm text-muted">
-              E-commerce · Bangalore, India · <span className="text-primary">abcfashion.com</span>
+              {opportunity?.industry || "E-commerce"} · {opportunity?.location || "Bangalore, India"}
             </p>
           </div>
           <div className="text-right">
-            <Score value={94} />
+            <Score value={opportunity?.score || 94} />
             <Badge className="mt-2 bg-emerald-50 text-success">High Opportunity</Badge>
           </div>
         </div>

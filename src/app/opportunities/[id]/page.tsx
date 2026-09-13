@@ -1,2 +1,5 @@
 import { OpportunityDetail } from "@/features/opportunities/opportunity-detail";
-export default function Page(){ return <OpportunityDetail/>; }
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <OpportunityDetail id={id} />;
+}
