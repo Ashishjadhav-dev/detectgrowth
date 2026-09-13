@@ -54,6 +54,10 @@ func main() {
 	mux.HandleFunc("GET /api/v1/health", healthHandler)
 	mux.HandleFunc("GET /api/v1/companies", store.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", store.createCompany)
+	mux.HandleFunc("GET /api/v1/dashboard/summary", dashboardSummaryHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/insights", dashboardInsightsHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/tasks", dashboardTasksHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/activity", dashboardActivityHandler)
 
 	server := &http.Server{
 		Addr:              ":" + port,
@@ -68,6 +72,57 @@ func main() {
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apiResponse{
 		Data: map[string]string{"status": "ok", "service": "detectgrowth-api"},
+		Meta: map[string]any{"requestId": requestID(r)},
+	})
+}
+
+func dashboardSummaryHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, apiResponse{
+		Data: map[string]string{
+			"newOpportunities":  "128",
+			"companiesSurging":   "47",
+			"newSignals":        "284",
+			"peopleDiscovered":  "1,420",
+			"pipelineValue":     "$8.42M",
+			"averageGrowthScore": "94",
+			"growthDelta":       "+18.2%",
+		},
+		Meta: map[string]any{"requestId": requestID(r)},
+	})
+}
+
+func dashboardInsightsHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, apiResponse{
+		Data: []map[string]string{
+			{"text": "Stripe raised $4.5B Series I two hours ago", "age": "1h ago"},
+			{"text": "13 companies entered your ICP yesterday", "age": "2h ago"},
+			{"text": "28 marketing roles opened across target accounts", "age": "3h ago"},
+		},
+		Meta: map[string]any{"requestId": requestID(r)},
+	})
+}
+
+func dashboardTasksHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, apiResponse{
+		Data: []map[string]any{
+			{"label": "Follow up with Databricks", "urgency": "High", "due": "Today", "completed": false},
+			{"label": "Review 15 new signals", "urgency": "Medium", "due": "Today", "completed": false},
+			{"label": "Call Sarah at Notion", "urgency": "High", "due": "Tomorrow", "completed": false},
+			{"label": "Prepare Acme Corp proposal", "urgency": "Medium", "due": "Tomorrow", "completed": false},
+			{"label": "Connect with new leads", "urgency": "Low", "due": "May 30", "completed": false},
+		},
+		Meta: map[string]any{"requestId": requestID(r)},
+	})
+}
+
+func dashboardActivityHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, apiResponse{
+		Data: []map[string]string{
+			{"text": "You added 32 companies to AI Startup lists", "age": "Just now"},
+			{"text": "Sarah commented on Acme Corp", "age": "12m ago"},
+			{"text": "You starred product-led growth signals", "age": "1h ago"},
+			{"text": "Deal closed: NITRO - $120K", "age": "2h ago"},
+		},
 		Meta: map[string]any{"requestId": requestID(r)},
 	})
 }

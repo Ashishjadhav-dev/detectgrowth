@@ -1,4 +1,6 @@
+"use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   Bell,
   CalendarDays,
@@ -23,6 +25,7 @@ import { Card } from "@/components/ui/card";
 import { Score } from "@/components/ui/score";
 import { Sparkline } from "@/components/charts/sparkline";
 import { opportunities, signals } from "@/data/mock";
+import { getDashboardData, type DashboardData } from "@/lib/api/dashboard";
 import {
   AvatarStack,
   DonutChart,
@@ -123,8 +126,23 @@ const intelligenceRows = [
 ];
 
 export function DashboardView() {
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getDashboardData()
+      .then(setDashboard)
+      .catch((error: Error) => setDashboardError(error.message));
+  }, []);
+
+  const dashboardSummary = dashboard?.summary;
+  const visibleInsights = dashboard?.insights ?? insights.map((text, index) => ({ text, age: `${index + 1}h ago` }));
+  const visibleTasks = dashboard?.tasks ?? tasks.map(([label, urgency, due]) => ({ label, urgency, due, completed: false }));
+  const visibleActivity = dashboard?.activity ?? activity.map((text) => ({ text, age: "Just now" }));
+
   return (
     <div className="space-y-6">
+      {dashboardError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Dashboard API unavailable; showing preview data. Start the Go API to load live dashboard data.</div> : null}
       <section className="grid gap-4 xl:grid-cols-[1.35fr_.95fr]">
         <Card className="glass-card overflow-hidden p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -148,11 +166,11 @@ export function DashboardView() {
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label="New opportunities" value="128" delta="+18.7%" note="vs last 7 days" icon={<Rocket className="size-4" />} />
-            <MetricCard label="Companies surging" value="47" delta="+12.6%" note="vs last 7 days" icon={<TrendingUp className="size-4" />} />
-            <MetricCard label="New signals" value="284" delta="+32.1%" note="vs last 7 days" icon={<Zap className="size-4" />} />
-            <MetricCard label="People discovered" value="1,420" delta="+15.3%" note="vs last 7 days" icon={<Users className="size-4" />} />
-            <MetricCard label="Pipeline value" value="$8.42M" delta="+21.6%" note="vs last 7 days" icon={<Target className="size-4" />} />
+            <MetricCard label="New opportunities" value={dashboardSummary?.newOpportunities ?? "128"} delta="+18.7%" note="vs last 7 days" icon={<Rocket className="size-4" />} />
+            <MetricCard label="Companies surging" value={dashboardSummary?.companiesSurging ?? "47"} delta="+12.6%" note="vs last 7 days" icon={<TrendingUp className="size-4" />} />
+            <MetricCard label="New signals" value={dashboardSummary?.newSignals ?? "284"} delta="+32.1%" note="vs last 7 days" icon={<Zap className="size-4" />} />
+            <MetricCard label="People discovered" value={dashboardSummary?.peopleDiscovered ?? "1,420"} delta="+15.3%" note="vs last 7 days" icon={<Users className="size-4" />} />
+            <MetricCard label="Pipeline value" value={dashboardSummary?.pipelineValue ?? "$8.42M"} delta="+21.6%" note="vs last 7 days" icon={<Target className="size-4" />} />
           </div>
         </Card>
 
@@ -165,14 +183,14 @@ export function DashboardView() {
             <Bell className="size-5 text-subtle" />
           </div>
           <div className="mt-4 space-y-3">
-            {insights.map((item, index) => (
-              <div key={item} className="flex gap-3 rounded-2xl border border-border bg-white p-3">
+            {visibleInsights.map((item, index) => (
+              <div key={item.text} className="flex gap-3 rounded-2xl border border-border bg-white p-3">
                 <div className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
                   {index === 0 ? <Flame className="size-4" /> : index === 1 ? <Compass className="size-4" /> : <ShieldAlert className="size-4" />}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-ink">{item}</div>
-                  <div className="mt-1 text-xs text-muted">{index + 1}h ago</div>
+                  <div className="text-sm font-medium text-ink">{item.text}</div>
+                  <div className="mt-1 text-xs text-muted">{item.age}</div>
                 </div>
               </div>
             ))}
@@ -197,10 +215,10 @@ export function DashboardView() {
             <div className="mt-3 h-64 rounded-2xl bg-[linear-gradient(180deg,rgba(91,53,230,.06),rgba(91,53,230,0))] p-4">
               <div className="flex h-full flex-col justify-between">
                 <div className="space-y-2">
-                  <div className="text-4xl font-semibold tracking-tight text-ink">94</div>
+                <div className="text-4xl font-semibold tracking-tight text-ink">{dashboardSummary?.averageGrowthScore ?? "94"}</div>
                   <div className="flex items-center gap-2 text-sm text-success">
                     <TrendingUp className="size-4" />
-                    +18.2% this month
+                    {dashboardSummary?.growthDelta ?? "+18.2%"} this month
                   </div>
                 </div>
                 <div className="flex items-end justify-between gap-4">
@@ -251,15 +269,15 @@ export function DashboardView() {
         <Card className="glass-card p-5">
           <SectionHeader title="My tasks" description="Follow-ups and reviews for today" />
           <div className="space-y-2">
-            {tasks.map(([label, urgency, due]) => (
-              <label key={label} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
-                <input type="checkbox" className="size-4 rounded border-border text-primary" />
+            {visibleTasks.map((task) => (
+              <label key={task.label} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
+                <input type="checkbox" defaultChecked={task.completed} className="size-4 rounded border-border text-primary" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink">{label}</div>
+                  <div className="text-sm font-medium text-ink">{task.label}</div>
                   <div className="mt-1 flex items-center gap-2 text-xs text-muted">
-                    <span>{urgency}</span>
+                    <span>{task.urgency}</span>
                     <span>•</span>
-                    <span>{due}</span>
+                    <span>{task.due}</span>
                   </div>
                 </div>
               </label>
@@ -374,14 +392,14 @@ export function DashboardView() {
         <Card className="glass-card p-5">
           <SectionHeader title="Recent activity" description="Collaborator updates and system events" />
           <div className="space-y-3">
-            {activity.map((item, index) => (
-              <div key={item} className="flex items-start gap-3 rounded-2xl border border-border bg-white p-3">
+            {visibleActivity.map((item, index) => (
+              <div key={item.text} className="flex items-start gap-3 rounded-2xl border border-border bg-white p-3">
                 <div className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
                   {index === 0 ? <FolderHeart className="size-4" /> : index === 1 ? <CheckCircle2 className="size-4" /> : index === 2 ? <FileText className="size-4" /> : <CircleEllipsis className="size-4" />}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-ink">{item}</div>
-                  <div className="mt-1 text-xs text-muted">Just now</div>
+                  <div className="text-sm font-medium text-ink">{item.text}</div>
+                  <div className="mt-1 text-xs text-muted">{item.age}</div>
                 </div>
               </div>
             ))}
