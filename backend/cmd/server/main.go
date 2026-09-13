@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +16,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Company struct {
@@ -72,6 +76,10 @@ func main() {
 	api := &app{db: db, workspaceID: workspaceID}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", healthHandler)
+	mux.HandleFunc("POST /api/v1/auth/sign-up", api.signUp)
+	mux.HandleFunc("POST /api/v1/auth/sign-in", api.signIn)
+	mux.HandleFunc("POST /api/v1/auth/sign-out", api.signOut)
+	mux.HandleFunc("GET /api/v1/me", api.me)
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
 	mux.HandleFunc("GET /api/v1/companies/{companyID}", api.getCompany)
@@ -102,6 +110,79 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
+type authUser struct {
+	ID        string `json:"id"`
+	Email     string `json:"email"`
+	Name      string `json:"name"`
+	Workspace map[string]any `json:"workspace"`
+}
+
+func (a *app) signUp(w http.ResponseWriter, r *http.Request) {
+	var input struct { Name string `json:"name"`; Email string `json:"email"`; Password string `json:"password"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || strings.TrimSpace(input.Name) == "" || strings.TrimSpace(input.Email) == "" || len(input.Password) < 8 {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Name, email, and a password of at least 8 characters are required."); return
+	}
+	email := strings.ToLower(strings.TrimSpace(input.Email))
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "AUTH_ERROR", "Unable to create account."); return }
+	tx, err := a.db.BeginTx(r.Context(), nil)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to create account."); return }
+	defer tx.Rollback()
+	var userID string
+	err = tx.QueryRowContext(r.Context(), `INSERT INTO users (email, name, password_hash, email_verified_at) VALUES ($1, $2, $3, now()) RETURNING id::text`, email, strings.TrimSpace(input.Name), string(hash)).Scan(&userID)
+	if err != nil { writeError(w, r, http.StatusConflict, "EMAIL_IN_USE", "An account with this email already exists."); return }
+	slug := "workspace-" + randomSuffix()
+	var workspaceID, workspaceName string
+	err = tx.QueryRowContext(r.Context(), `INSERT INTO workspaces (name, slug) VALUES ($1, $2) RETURNING id::text, name`, strings.TrimSpace(input.Name)+"'s Workspace", slug).Scan(&workspaceID, &workspaceName)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to create workspace."); return }
+	var roleID string
+	err = tx.QueryRowContext(r.Context(), `INSERT INTO roles (workspace_id, name, is_system) VALUES ($1, 'owner', true) RETURNING id::text`, workspaceID).Scan(&roleID)
+	if err == nil { _, err = tx.ExecContext(r.Context(), `INSERT INTO workspace_memberships (workspace_id, user_id, role_id) VALUES ($1, $2, $3)`, workspaceID, userID, roleID) }
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to initialize workspace."); return }
+	token, tokenHash, err := newSessionToken()
+	if err == nil { _, err = tx.ExecContext(r.Context(), `INSERT INTO sessions (user_id, workspace_id, token_hash, expires_at) VALUES ($1, $2, $3, now() + interval '30 days')`, userID, workspaceID, tokenHash) }
+	if err != nil || tx.Commit() != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to start session."); return }
+	setSessionCookie(w, token)
+	writeJSON(w, http.StatusCreated, apiResponse{Data: authUser{ID: userID, Email: email, Name: strings.TrimSpace(input.Name), Workspace: map[string]any{"id": workspaceID, "name": workspaceName}}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) signIn(w http.ResponseWriter, r *http.Request) {
+	var input struct { Email string `json:"email"`; Password string `json:"password"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || strings.TrimSpace(input.Email) == "" || input.Password == "" { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Email and password are required."); return }
+	var userID, email, name, passwordHash, workspaceID, workspaceName string
+	err := a.db.QueryRowContext(r.Context(), `SELECT u.id::text, u.email, u.name, u.password_hash, wm.workspace_id::text, w.name FROM users u JOIN workspace_memberships wm ON wm.user_id = u.id JOIN workspaces w ON w.id = wm.workspace_id WHERE lower(u.email) = lower($1) AND u.status = 'active' ORDER BY wm.created_at LIMIT 1`, strings.TrimSpace(input.Email)).Scan(&userID, &email, &name, &passwordHash, &workspaceID, &workspaceName)
+	if errors.Is(err, sql.ErrNoRows) || passwordHash == "" || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(input.Password)) != nil { writeError(w, r, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid email or password."); return }
+	token, tokenHash, err := newSessionToken()
+	if err != nil || func() error { _, e := a.db.ExecContext(r.Context(), `INSERT INTO sessions (user_id, workspace_id, token_hash, expires_at) VALUES ($1, $2, $3, now() + interval '30 days')`, userID, workspaceID, tokenHash); return e }() != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to start session."); return }
+	setSessionCookie(w, token)
+	writeJSON(w, http.StatusOK, apiResponse{Data: authUser{ID: userID, Email: email, Name: name, Workspace: map[string]any{"id": workspaceID, "name": workspaceName}}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) signOut(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie("detectgrowth_session"); err == nil { _, _ = a.db.ExecContext(r.Context(), `DELETE FROM sessions WHERE token_hash = $1`, hashToken(cookie.Value)) }
+	http.SetCookie(w, &http.Cookie{Name: "detectgrowth_session", Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]bool{"signedOut": true}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) me(w http.ResponseWriter, r *http.Request) {
+	user, err := a.sessionUser(r)
+	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Sign in is required."); return }
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load session."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: user, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) sessionUser(r *http.Request) (authUser, error) {
+	cookie, err := r.Cookie("detectgrowth_session"); if err != nil { return authUser{}, sql.ErrNoRows }
+	var user authUser; var workspaceID, workspaceName string
+	err = a.db.QueryRowContext(r.Context(), `SELECT u.id::text, u.email, u.name, s.workspace_id::text, w.name FROM sessions s JOIN users u ON u.id = s.user_id JOIN workspaces w ON w.id = s.workspace_id WHERE s.token_hash = $1 AND s.expires_at > now() AND u.status = 'active'`, hashToken(cookie.Value)).Scan(&user.ID, &user.Email, &user.Name, &workspaceID, &workspaceName)
+	user.Workspace = map[string]any{"id": workspaceID, "name": workspaceName}; return user, err
+}
+
+func newSessionToken() (string, string, error) { b := make([]byte, 32); if _, err := rand.Read(b); err != nil { return "", "", err }; token := fmt.Sprintf("%x", b); return token, hashToken(token), nil }
+func hashToken(token string) string { sum := sha256.Sum256([]byte(token)); return fmt.Sprintf("%x", sum[:]) }
+func randomSuffix() string { b := make([]byte, 6); if _, err := rand.Read(b); err != nil { return strconv.FormatInt(time.Now().UnixNano(), 10) }; return fmt.Sprintf("%x", b) }
+func setSessionCookie(w http.ResponseWriter, token string) { http.SetCookie(w, &http.Cookie{Name: "detectgrowth_session", Value: token, Path: "/", MaxAge: 60 * 60 * 24 * 30, HttpOnly: true, SameSite: http.SameSiteLaxMode}) }
+
 func ensureWorkspace(ctx context.Context, db *sql.DB) (string, error) {
 	var id string
 	err := db.QueryRowContext(ctx, `SELECT id::text FROM workspaces ORDER BY created_at LIMIT 1`).Scan(&id)
@@ -127,6 +208,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) dashboardSummaryHandler(w http.ResponseWriter, r *http.Request) {
 	var companies, people, signals, opportunities int
+	var pipelineValue, averageScore float64
 	err := a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM companies WHERE workspace_id = $1`, a.workspaceID).Scan(&companies)
 	if err == nil {
 		err = a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM people WHERE workspace_id = $1`, a.workspaceID).Scan(&people)
@@ -136,6 +218,9 @@ func (a *app) dashboardSummaryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil {
 		err = a.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM opportunities WHERE workspace_id = $1`, a.workspaceID).Scan(&opportunities)
+	}
+	if err == nil {
+		err = a.db.QueryRowContext(r.Context(), `SELECT COALESCE(SUM(expected_value), 0), COALESCE(AVG(score), 0) FROM opportunities WHERE workspace_id = $1 AND status = 'open'`, a.workspaceID).Scan(&pipelineValue, &averageScore)
 	}
 	if err != nil {
 		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load dashboard summary.")
@@ -147,12 +232,18 @@ func (a *app) dashboardSummaryHandler(w http.ResponseWriter, r *http.Request) {
 			"companiesSurging":    strconv.Itoa(companies),
 			"newSignals":         strconv.Itoa(signals),
 			"peopleDiscovered":   strconv.Itoa(people),
-			"pipelineValue":      "$0",
-			"averageGrowthScore": "0",
+			"pipelineValue":      "$" + formatCurrency(pipelineValue),
+			"averageGrowthScore": strconv.Itoa(int(averageScore + 0.5)),
 			"growthDelta":        "0%",
 		},
 		Meta: map[string]any{"requestId": requestID(r), "workspaceId": a.workspaceID},
 	})
+}
+
+func formatCurrency(value float64) string {
+	if value >= 1000000 { return strconv.FormatFloat(value/1000000, 'f', 2, 64) + "M" }
+	if value >= 1000 { return strconv.FormatFloat(value/1000, 'f', 1, 64) + "K" }
+	return strconv.FormatFloat(value, 'f', 0, 64)
 }
 
 func (a *app) dashboardSignalsHandler(w http.ResponseWriter, r *http.Request) {

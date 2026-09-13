@@ -152,6 +152,7 @@ export function DashboardView() {
   }, []);
 
   const dashboardSummary = dashboard?.summary;
+  const metricDelta = dashboardSummary?.growthDelta ?? "—";
   const visibleInsights = dashboard?.insights ?? insights.map((text, index) => ({ id: `preview-insight-${index}`, text, age: `${index + 1}h ago` }));
   const visibleTasks = dashboard?.tasks ?? tasks.map(([label, urgency, due], index) => ({ id: `preview-task-${index}`, label, urgency, due, completed: false }));
   const visibleActivity = dashboard?.activity ?? activity.map((text, index) => ({ id: `preview-activity-${index}`, text, age: "Just now" }));
@@ -187,11 +188,11 @@ export function DashboardView() {
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label="New opportunities" value={dashboardSummary?.newOpportunities ?? "128"} delta="+18.7%" note="vs last 7 days" icon={<Rocket className="size-4" />} />
-            <MetricCard label="Companies surging" value={dashboardSummary?.companiesSurging ?? "47"} delta="+12.6%" note="vs last 7 days" icon={<TrendingUp className="size-4" />} />
-            <MetricCard label="New signals" value={dashboardSummary?.newSignals ?? "284"} delta="+32.1%" note="vs last 7 days" icon={<Zap className="size-4" />} />
-            <MetricCard label="People discovered" value={dashboardSummary?.peopleDiscovered ?? "1,420"} delta="+15.3%" note="vs last 7 days" icon={<Users className="size-4" />} />
-            <MetricCard label="Pipeline value" value={dashboardSummary?.pipelineValue ?? "$8.42M"} delta="+21.6%" note="vs last 7 days" icon={<Target className="size-4" />} />
+            <MetricCard label="New opportunities" value={dashboardSummary?.newOpportunities ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<Rocket className="size-4" />} />
+            <MetricCard label="Companies surging" value={dashboardSummary?.companiesSurging ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<TrendingUp className="size-4" />} />
+            <MetricCard label="New signals" value={dashboardSummary?.newSignals ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<Zap className="size-4" />} />
+            <MetricCard label="People discovered" value={dashboardSummary?.peopleDiscovered ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<Users className="size-4" />} />
+            <MetricCard label="Pipeline value" value={dashboardSummary?.pipelineValue ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<Target className="size-4" />} />
           </div>
         </Card>
 
@@ -236,10 +237,10 @@ export function DashboardView() {
             <div className="mt-3 h-64 rounded-2xl bg-[linear-gradient(180deg,rgba(91,53,230,.06),rgba(91,53,230,0))] p-4">
               <div className="flex h-full flex-col justify-between">
                 <div className="space-y-2">
-                <div className="text-4xl font-semibold tracking-tight text-ink">{dashboardSummary?.averageGrowthScore ?? "94"}</div>
+                <div className="text-4xl font-semibold tracking-tight text-ink">{dashboardSummary?.averageGrowthScore ?? "—"}</div>
                   <div className="flex items-center gap-2 text-sm text-success">
                     <TrendingUp className="size-4" />
-                    {dashboardSummary?.growthDelta ?? "+18.2%"} this month
+                    {dashboardSummary?.growthDelta ?? "—"} this month
                   </div>
                 </div>
                 <div className="flex items-end justify-between gap-4">
