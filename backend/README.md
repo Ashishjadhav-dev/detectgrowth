@@ -15,6 +15,8 @@ The initial foundation includes:
 - CORS for the local Next.js app
 - An in-memory company store for local API wiring
 
+The free-source signal worker is available at `cmd/worker`. It polls GDELT and Hacker News and stores deduplicated events in PostgreSQL.
+
 The in-memory store is intentionally temporary. The next code milestone is wiring the Go repositories to PostgreSQL, then adding workspace-aware authentication and permission checks.
 
 ## Run locally
@@ -23,6 +25,19 @@ Go 1.22 or newer is required:
 
 ```bash
 go run ./cmd/server
+```
+
+In a second backend terminal, run the signal worker:
+
+```bash
+go run ./cmd/worker
+```
+
+Optional worker settings:
+
+```env
+SIGNAL_POLL_INTERVAL=10m
+GDELT_QUERY=startup OR funding OR hiring
 ```
 
 Start local infrastructure from the repository root:
