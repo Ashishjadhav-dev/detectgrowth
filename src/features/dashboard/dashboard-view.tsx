@@ -23,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Score } from "@/components/ui/score";
-import { Sparkline } from "@/components/charts/sparkline";
 import { getDashboardData, updateDashboardTask, type DashboardData } from "@/lib/api/dashboard";
 import {
   AvatarStack,
@@ -119,7 +118,7 @@ export function DashboardView() {
 
   return (
     <div className="space-y-6">
-      {dashboardError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Dashboard API unavailable; showing preview data. Start the Go API to load live dashboard data.</div> : null}
+      {dashboardError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Dashboard API unavailable. Start the Go API and try again.</div> : null}
       <section className="grid gap-4 xl:grid-cols-[1.35fr_.95fr]">
         <Card className="glass-card overflow-hidden p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -200,17 +199,12 @@ export function DashboardView() {
                 </div>
                 <div className="flex items-end justify-between gap-4">
                   <div className="max-w-xl flex-1 text-primary">
-                    <Sparkline />
-                    <div className="mt-2 grid grid-cols-7 text-[10px] text-subtle">
-                      {["Aug 20", "Aug 21", "Aug 22", "Aug 23", "Aug 24", "Aug 25", "Aug 26"].map((day) => (
-                        <span key={day}>{day}</span>
-                      ))}
-                    </div>
+                    <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-center text-xs text-muted">No historical score data yet.<br />The API will populate this after scores are recorded over time.</div>
                   </div>
                   <div className="w-40 space-y-2">
-                    <SummaryPill label="Top signal" value="Hiring surge" tone="success" />
-                    <SummaryPill label="Momentum" value="+32%" tone="info" />
-                    <SummaryPill label="Confidence" value="High" tone="warning" />
+                    <SummaryPill label="Top signal" value={visibleSignals[0]?.type ?? "—"} tone="success" />
+                    <SummaryPill label="Momentum" value={metricDelta} tone="info" />
+                    <SummaryPill label="Confidence" value={visibleSignals[0] ? `${visibleSignals[0].confidence}%` : "—"} tone="warning" />
                   </div>
                 </div>
               </div>
@@ -232,7 +226,7 @@ export function DashboardView() {
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-semibold text-ink">{signal.confidence}%</div>
-                  <div className="text-xs text-success">+{signal.impact}</div>
+                  <div className="text-xs text-success">{signal.impact} impact</div>
                 </div>
               </div>
             ))}
@@ -333,8 +327,8 @@ export function DashboardView() {
         </Card>
 
         <Card className="glass-card p-5">
-          <SectionHeader title="Pipeline overview" description="Projected pipeline in the current cycle" action={<Link className="text-sm font-medium text-primary" href="/opportunities/abc-fashion">View pipeline</Link>} />
-          <DonutChart value="$8.42M" label="Total" sublabel="Pipeline value by stage and owner" />
+          <SectionHeader title="Pipeline overview" description="Projected pipeline in the current cycle" action={<Link className="text-sm font-medium text-primary" href="/opportunities">View pipeline</Link>} />
+          <DonutChart value={dashboardSummary?.pipelineValue ?? "—"} label="Total" sublabel="Pipeline value by stage and owner" segments={visiblePipeline.map((column, index) => ({ label: column.title, value: Number.parseInt(column.count, 10) || 0, color: ["#5b35e6", "#7c5cff", "#2f6fed", "#18a66b", "#f59e0b"][index % 5] }))} />
           <div className="mt-5 grid gap-2">
             {visiblePipeline.map((column) => (
               <div key={column.title} className="flex items-center justify-between rounded-2xl border border-border bg-white px-3 py-2.5">

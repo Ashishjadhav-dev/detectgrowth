@@ -123,18 +123,25 @@ export function DonutChart({
   value,
   label,
   sublabel,
+  segments = [],
 }: {
   value: string;
   label: string;
   sublabel: string;
+  segments?: { label: string; value: number; color: string }[];
 }) {
+  const total = segments.reduce((sum, segment) => sum + segment.value, 0);
+  let offset = 0;
+  const gradient = segments.length && total > 0
+    ? segments.map((segment) => { const start = (offset / total) * 100; offset += segment.value; return `${segment.color} ${start}% ${(offset / total) * 100}%`; }).join(", ")
+    : "#e7e9f2 0 100%";
   return (
     <div className="flex items-center gap-4">
       <div
         className="grid size-28 place-items-center rounded-full"
         style={{
           background:
-            "conic-gradient(#5b35e6 0 38%, #7c5cff 38% 67%, #2f6fed 67% 82%, #18a66b 82% 100%)",
+            `conic-gradient(${gradient})`,
         }}
       >
         <div className="grid size-20 place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(231,233,242,.9)]">
@@ -146,20 +153,7 @@ export function DonutChart({
       </div>
       <div className="space-y-2">
         <div className="text-sm text-muted">{sublabel}</div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <span className="size-2 rounded-full bg-primary" />
-            Qualified
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <span className="size-2 rounded-full bg-info" />
-            Proposed
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <span className="size-2 rounded-full bg-success" />
-            Won
-          </div>
-        </div>
+        <div className="space-y-2">{segments.length ? segments.map((segment) => <div key={segment.label} className="flex items-center gap-2 text-xs text-muted"><span className="size-2 rounded-full" style={{ backgroundColor: segment.color }} />{segment.label} · {segment.value}</div>) : <div className="text-xs text-muted">No pipeline stages yet.</div>}</div>
       </div>
     </div>
   );
