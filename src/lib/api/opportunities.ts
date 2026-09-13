@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 
-export type ApiOpportunity = { id: string; company: string; industry: string; location: string; score: number; employees: string; stage: string; status?: string };
+export type ApiOpportunity = { id: string; company: string; industry: string; location: string; score: number; employees: string; stage: string; status?: string; expectedValue?: number; signals?: { id: string; title: string; description: string; impact: string; confidence: number; detectedAt: string; sourceUrl: string }[] };
 
 export function listOpportunities(query?: string) {
   const params = query?.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";

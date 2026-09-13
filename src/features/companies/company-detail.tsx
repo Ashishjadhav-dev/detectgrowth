@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CompanyMark } from "@/components/companies/company-mark";
-import { Score } from "@/components/ui/score";
 import { Progress } from "@/components/ui/progress";
 import { SectionHeader } from "@/components/ui/patterns";
 import { getCompany, type ApiCompany } from "@/lib/api/companies";

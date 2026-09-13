@@ -570,12 +570,15 @@ func (a *app) createOpportunity(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) getOpportunity(w http.ResponseWriter, r *http.Request) {
 	var opportunity map[string]any = map[string]any{}
-	var id, company, industry, location, employees, stage, status string
-	var score int
-	err := a.db.QueryRowContext(r.Context(), `SELECT o.id::text, COALESCE(c.name, ''), COALESCE(c.industry, ''), COALESCE(c.location, ''), COALESCE(o.score, 0), COALESCE(c.employee_range, ''), o.pipeline_stage, o.status FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id WHERE o.id = $1 AND o.workspace_id = $2`, r.PathValue("opportunityID"), a.workspaceIDFor(r)).Scan(&id, &company, &industry, &location, &score, &employees, &stage, &status)
+	var id, company, industry, location, employees, stage, status, companyID string
+	var score int; var expectedValue float64
+	err := a.db.QueryRowContext(r.Context(), `SELECT o.id::text, COALESCE(c.name, ''), COALESCE(c.industry, ''), COALESCE(c.location, ''), COALESCE(o.score, 0), COALESCE(c.employee_range, ''), o.pipeline_stage, o.status, COALESCE(o.company_id::text, ''), COALESCE(o.expected_value, 0) FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id WHERE o.id = $1 AND o.workspace_id = $2`, r.PathValue("opportunityID"), a.workspaceIDFor(r)).Scan(&id, &company, &industry, &location, &score, &employees, &stage, &status, &companyID, &expectedValue)
 	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Opportunity not found."); return }
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load opportunity."); return }
-	opportunity["id"], opportunity["company"], opportunity["industry"], opportunity["location"], opportunity["score"], opportunity["employees"], opportunity["stage"], opportunity["status"] = id, company, industry, location, score, employees, stage, status
+	opportunity["id"], opportunity["company"], opportunity["industry"], opportunity["location"], opportunity["score"], opportunity["employees"], opportunity["stage"], opportunity["status"], opportunity["expectedValue"] = id, company, industry, location, score, employees, stage, status, expectedValue
+	opportunitySignals := make([]map[string]any, 0)
+	if companyID != "" { rows, queryErr := a.db.QueryContext(r.Context(), `SELECT id::text, title, COALESCE(description, ''), INITCAP(impact), COALESCE(confidence, 0), COALESCE(detected_at, created_at), COALESCE(source_url, '') FROM signals WHERE workspace_id = $1 AND company_id = $2 ORDER BY COALESCE(detected_at, created_at) DESC LIMIT 20`, a.workspaceIDFor(r), companyID); if queryErr == nil { defer rows.Close(); for rows.Next() { var signalID, title, description, impact, sourceURL string; var confidence float64; var detected time.Time; if scanErr := rows.Scan(&signalID, &title, &description, &impact, &confidence, &detected, &sourceURL); scanErr != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read opportunity signals."); return }; opportunitySignals = append(opportunitySignals, map[string]any{"id": signalID, "title": title, "description": description, "impact": impact, "confidence": confidence, "detectedAt": detected.Format(time.RFC3339), "sourceUrl": sourceURL}) } } }
+	opportunity["signals"] = opportunitySignals
 	writeJSON(w, http.StatusOK, apiResponse{Data: opportunity, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
