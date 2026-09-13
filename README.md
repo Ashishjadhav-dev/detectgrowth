@@ -1,4 +1,4 @@
-# DetectGrowth TypeScript SaaS UI
+# DetectGrowth
 
 A clean Next.js + TypeScript + Tailwind starter implementing the DetectGrowth product direction from the supplied reference.
 
