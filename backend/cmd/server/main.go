@@ -74,6 +74,8 @@ func main() {
 	mux.HandleFunc("GET /api/v1/health", healthHandler)
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
+	mux.HandleFunc("GET /api/v1/people", api.listPeople)
+	mux.HandleFunc("GET /api/v1/signals", api.listSignals)
 	mux.HandleFunc("GET /api/v1/dashboard/summary", api.dashboardSummaryHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/insights", api.dashboardInsightsHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/tasks", api.dashboardTasksHandler)
@@ -314,6 +316,26 @@ func (a *app) listCompanies(w http.ResponseWriter, r *http.Request) {
 			"hasNextPage": false,
 		},
 	})
+}
+
+func (a *app) listPeople(w http.ResponseWriter, r *http.Request) {
+	query := "%" + strings.TrimSpace(r.URL.Query().Get("q")) + "%"
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, name, COALESCE(title, ''), COALESCE(department, ''), COALESCE(decision_score, 0) FROM people WHERE workspace_id = $1 AND ($2 = '%%' OR name ILIKE $2 OR title ILIKE $2 OR department ILIKE $2) ORDER BY decision_score DESC NULLS LAST, name LIMIT 100`, a.workspaceID, query)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load people."); return }
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() { var id, name, title, department string; var score int; if err := rows.Scan(&id, &name, &title, &department, &score); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read people."); return }; data = append(data, map[string]any{"id": id, "name": name, "title": title, "department": department, "score": score}) }
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r), "total": len(data)}})
+}
+
+func (a *app) listSignals(w http.ResponseWriter, r *http.Request) {
+	query := "%" + strings.TrimSpace(r.URL.Query().Get("q")) + "%"
+	rows, err := a.db.QueryContext(r.Context(), `SELECT s.id::text, s.title, COALESCE(c.name, 'Unknown company'), COALESCE(s.description, ''), COALESCE(s.detected_at, s.created_at), INITCAP(s.impact), COALESCE(s.confidence, 0) FROM signals s LEFT JOIN companies c ON c.id = s.company_id WHERE s.workspace_id = $1 AND ($2 = '%%' OR s.title ILIKE $2 OR COALESCE(c.name, '') ILIKE $2 OR COALESCE(s.description, '') ILIKE $2) ORDER BY COALESCE(s.detected_at, s.created_at) DESC LIMIT 100`, a.workspaceID, query)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load signals."); return }
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() { var id, title, company, description, impact string; var timeValue time.Time; var confidence float64; if err := rows.Scan(&id, &title, &company, &description, &timeValue, &impact, &confidence); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read signals."); return }; data = append(data, map[string]any{"id": id, "type": title, "company": company, "description": description, "time": timeValue.Format(time.RFC3339), "impact": impact, "confidence": confidence}) }
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r), "total": len(data)}})
 }
 
 func (a *app) createCompany(w http.ResponseWriter, r *http.Request) {

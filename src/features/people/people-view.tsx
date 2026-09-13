@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bookmark, CalendarDays, Linkedin, Mail, Phone, Search, SlidersHorizontal, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { people } from "@/data/mock";
+import { listPeople, type ApiPerson } from "@/lib/api/people";
 import { SectionHeader } from "@/components/ui/patterns";
 
 const tabs = ["All", "Marketing", "Sales", "Leadership", "Open to outreach"] as const;
@@ -14,9 +15,16 @@ const tabs = ["All", "Marketing", "Sales", "Leadership", "Open to outreach"] as 
 export function PeopleView() {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("All");
+  const [apiPeople, setApiPeople] = useState<ApiPerson[] | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listPeople(query).then(setApiPeople).catch((error: Error) => setApiError(error.message));
+  }, [query]);
 
   const normalized = query.trim().toLowerCase();
-  const filtered = people.filter((person) => {
+  const sourcePeople = apiPeople ?? people;
+  const filtered = sourcePeople.filter((person) => {
     const matchesQuery =
       !normalized ||
       [person.name, person.title, person.department, String(person.score)].some((value) => value.toLowerCase().includes(normalized));
@@ -69,6 +77,7 @@ export function PeopleView() {
           ))}
           <div className="ml-auto text-sm text-muted">{filtered.length} contacts</div>
         </div>
+        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">People API unavailable; showing preview data.</div> : null}
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-[1.05fr_.95fr]">

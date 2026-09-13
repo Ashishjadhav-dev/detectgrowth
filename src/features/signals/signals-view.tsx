@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,15 +7,21 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { signals } from "@/data/mock";
 import { SectionHeader } from "@/components/ui/patterns";
+import { listSignals, type ApiSignal } from "@/lib/api/signals";
 
 const filters = ["All", "High", "Medium", "Low"] as const;
 
 export function SignalsView() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
+  const [apiSignals, setApiSignals] = useState<ApiSignal[] | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  useEffect(() => {
+    listSignals(query).then(setApiSignals).catch((error: Error) => setApiError(error.message));
+  }, [query]);
   const normalized = query.trim().toLowerCase();
 
-  const filtered = signals.filter((signal) => {
+  const filtered = (apiSignals ?? signals).filter((signal) => {
     const matchesQuery =
       !normalized ||
       [signal.type, signal.company, signal.description, signal.impact, String(signal.confidence)].some((value) =>
@@ -59,6 +65,7 @@ export function SignalsView() {
           ))}
           <div className="ml-auto text-sm text-muted">{filtered.length} signals</div>
         </div>
+        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Signals API unavailable; showing preview data.</div> : null}
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
