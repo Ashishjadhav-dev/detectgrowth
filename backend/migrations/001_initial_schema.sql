@@ -150,3 +150,7 @@ INSERT INTO permissions (key, description) VALUES
   ('opportunities.write', 'Create and edit opportunities'),
   ('workspace.manage', 'Manage workspace members and settings')
 ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO workspaces (name, slug)
+VALUES ('DetectGrowth Local', 'detectgrowth-local')
+ON CONFLICT (slug) DO NOTHING;
