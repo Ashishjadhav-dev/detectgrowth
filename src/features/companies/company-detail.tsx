@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Bookmark, Building2, Download, Mail, MoreHorizontal, Phone, Sparkles, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Score } from "@/components/ui/score";
 import { Progress } from "@/components/ui/progress";
 import { signals } from "@/data/mock";
 import { SectionHeader } from "@/components/ui/patterns";
+import { getCompany, type ApiCompany } from "@/lib/api/companies";
 
 const metrics = [
   ["Growth", "95", "+12"],
@@ -26,8 +27,12 @@ const people = [
 
 const tabs = ["Overview", "Growth", "Signals", "People", "Tech", "Funding", "Notes"] as const;
 
-export function CompanyDetail() {
+export function CompanyDetail({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Overview");
+  const [company, setCompany] = useState<ApiCompany | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  useEffect(() => { getCompany(id).then(setCompany).catch((error: Error) => setApiError(error.message)); }, [id]);
+  const liveSignals = company?.signals ?? signals;
 
   return (
     <div className="space-y-5">
@@ -53,12 +58,13 @@ export function CompanyDetail() {
       </div>
 
       <Card className="glass-card p-5">
+        {apiError ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Company API unavailable; showing preview data.</div> : null}
         <div className="flex flex-wrap items-start gap-4">
-          <CompanyMark name="ABC Fashion" />
+          <CompanyMark name={company?.name ?? "ABC Fashion"} />
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Company 360</div>
-            <h1 className="page-title mt-2">ABC Fashion</h1>
-            <p className="mt-1 text-sm text-muted">E-commerce · Bangalore, India · <span className="text-primary">abcfashion.com</span></p>
+            <h1 className="page-title mt-2">{company?.name ?? "ABC Fashion"}</h1>
+            <p className="mt-1 text-sm text-muted">{company?.industry || "E-commerce"} · {company?.location || "Bangalore, India"} · <span className="text-primary">{company?.domain || "abcfashion.com"}</span></p>
           </div>
           <div className="text-right">
             <Score value={95} />
@@ -163,7 +169,7 @@ export function CompanyDetail() {
         <Card className="glass-card p-5">
           <SectionHeader title="Signals timeline" description="Recent events that justify the account being active now." />
           <div className="space-y-3">
-            {signals.slice(0, 4).map((signal) => (
+            {liveSignals.slice(0, 4).map((signal) => (
               <div key={signal.id} className="rounded-2xl border border-border bg-white p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>

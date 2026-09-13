@@ -74,6 +74,7 @@ func main() {
 	mux.HandleFunc("GET /api/v1/health", healthHandler)
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
+	mux.HandleFunc("GET /api/v1/companies/{companyID}", api.getCompany)
 	mux.HandleFunc("GET /api/v1/people", api.listPeople)
 	mux.HandleFunc("GET /api/v1/signals", api.listSignals)
 	mux.HandleFunc("GET /api/v1/opportunities", api.listOpportunities)
@@ -328,6 +329,20 @@ func (a *app) listPeople(w http.ResponseWriter, r *http.Request) {
 	data := make([]map[string]any, 0)
 	for rows.Next() { var id, name, title, department string; var score int; if err := rows.Scan(&id, &name, &title, &department, &score); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read people."); return }; data = append(data, map[string]any{"id": id, "name": name, "title": title, "department": department, "score": score}) }
 	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r), "total": len(data)}})
+}
+
+func (a *app) getCompany(w http.ResponseWriter, r *http.Request) {
+	var company Company
+	err := a.db.QueryRowContext(r.Context(), `SELECT id::text, name, COALESCE(domain, ''), COALESCE(industry, ''), COALESCE(location, ''), COALESCE(employee_range, ''), status, created_at, updated_at FROM companies WHERE id = $1 AND workspace_id = $2`, r.PathValue("companyID"), a.workspaceID).Scan(&company.ID, &company.Name, &company.Domain, &company.Industry, &company.Location, &company.EmployeeRange, &company.Status, &company.CreatedAt, &company.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Company not found."); return }
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load company."); return }
+	companySignals := make([]map[string]any, 0)
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, title, COALESCE(description, ''), INITCAP(impact), COALESCE(detected_at, created_at) FROM signals WHERE workspace_id = $1 AND company_id = $2 ORDER BY COALESCE(detected_at, created_at) DESC LIMIT 20`, a.workspaceID, company.ID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() { var id, title, description, impact string; var detected time.Time; if err := rows.Scan(&id, &title, &description, &impact, &detected); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read company signals."); return }; companySignals = append(companySignals, map[string]any{"id": id, "type": title, "description": description, "impact": impact, "time": detected.Format(time.RFC3339)}) }
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": company.ID, "name": company.Name, "domain": company.Domain, "industry": company.Industry, "location": company.Location, "employeeRange": company.EmployeeRange, "status": company.Status, "createdAt": company.CreatedAt, "updatedAt": company.UpdatedAt, "signals": companySignals}, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func (a *app) listSignals(w http.ResponseWriter, r *http.Request) {
