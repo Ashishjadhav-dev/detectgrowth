@@ -139,6 +139,11 @@ export function DashboardView() {
   const visibleInsights = dashboard?.insights ?? insights.map((text, index) => ({ text, age: `${index + 1}h ago` }));
   const visibleTasks = dashboard?.tasks ?? tasks.map(([label, urgency, due]) => ({ label, urgency, due, completed: false }));
   const visibleActivity = dashboard?.activity ?? activity.map((text) => ({ text, age: "Just now" }));
+  const visibleSignals = dashboard?.signals ?? signals.slice(0, 5).map((signal) => ({ id: signal.id, type: signal.type, company: signal.company, confidence: signal.confidence, impact: signal.impact }));
+  const visibleOpportunities = dashboard?.opportunities ?? opportunities.slice(0, 5).map((opportunity, index) => ({ id: opportunity.id, company: opportunity.company, industry: opportunity.industry, score: opportunity.score, employees: String(2_400 - index * 350), signal: opportunity.signals[0] }));
+  const visibleWatchlist = dashboard?.watchlist ?? watchlist;
+  const visiblePipeline = dashboard?.pipeline ?? pipelineColumns;
+  const visibleTrending = dashboard?.trending ?? intelligenceRows.map(([name, score, delta]) => ({ name, score, delta }));
 
   return (
     <div className="space-y-6">
@@ -244,7 +249,7 @@ export function DashboardView() {
         <Card className="glass-card p-5">
           <SectionHeader title="Top signals" description="Recent buying intent and business change" />
           <div className="space-y-2">
-            {signals.slice(0, 5).map((signal) => (
+            {visibleSignals.map((signal) => (
               <div key={signal.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
                 <div className="grid size-9 place-items-center rounded-xl bg-primary-soft text-primary">
                   <Zap className="size-4" />
@@ -304,7 +309,7 @@ export function DashboardView() {
                 </tr>
               </thead>
               <tbody>
-                {opportunities.slice(0, 5).map((opportunity, index) => (
+                {visibleOpportunities.map((opportunity) => (
                   <tr key={opportunity.id} className="border-t border-border/80 transition hover:bg-elevated/60">
                     <td className="table-cell">
                       <div className="flex items-center gap-3">
@@ -320,8 +325,8 @@ export function DashboardView() {
                     <td className="table-cell">
                       <Score value={opportunity.score} compact />
                     </td>
-                    <td className="table-cell text-muted">{2_400 - index * 350}</td>
-                    <td className="table-cell text-muted">{opportunity.signals[0]}</td>
+                    <td className="table-cell text-muted">{opportunity.employees}</td>
+                    <td className="table-cell text-muted">{opportunity.signal}</td>
                   </tr>
                 ))}
               </tbody>
@@ -332,7 +337,7 @@ export function DashboardView() {
         <Card className="glass-card p-5">
           <SectionHeader title="Watchlist updates" description="AI startup accounts you are tracking" action={<Link className="text-sm font-medium text-primary" href="/lists">View watchlist</Link>} />
           <div className="space-y-3">
-            {watchlist.map((item) => (
+            {visibleWatchlist.map((item) => (
               <div key={item.name} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
                 <AvatarStack names={[item.name, "Growth Team"]} />
                 <div className="min-w-0 flex-1">
@@ -352,7 +357,7 @@ export function DashboardView() {
           <SectionHeader title="Pipeline overview" description="Projected pipeline in the current cycle" action={<Link className="text-sm font-medium text-primary" href="/opportunities/abc-fashion">View pipeline</Link>} />
           <DonutChart value="$8.42M" label="Total" sublabel="Pipeline value by stage and owner" />
           <div className="mt-5 grid gap-2">
-            {pipelineColumns.map((column) => (
+            {visiblePipeline.map((column) => (
               <div key={column.title} className="flex items-center justify-between rounded-2xl border border-border bg-white px-3 py-2.5">
                 <div>
                   <div className="text-sm font-medium text-ink">{column.title}</div>
@@ -371,18 +376,18 @@ export function DashboardView() {
         <Card className="glass-card p-5">
           <SectionHeader title="Trending companies" description="Signals are clustering around these accounts" action={<Link className="text-sm font-medium text-primary" href="/discover">View all</Link>} />
           <div className="space-y-2">
-            {intelligenceRows.map(([name, score, delta]) => (
-              <div key={name} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
+            {visibleTrending.map((item) => (
+              <div key={item.name} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
                 <div className="grid size-8 place-items-center rounded-xl bg-primary-soft text-xs font-semibold text-primary">
-                  {name.slice(0, 2)}
+                  {item.name.slice(0, 2)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink">{name}</div>
+                  <div className="text-sm font-medium text-ink">{item.name}</div>
                   <div className="text-xs text-muted">Signal strength and momentum</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-semibold text-ink">{score}</div>
-                  <div className="text-xs text-success">{delta}</div>
+                  <div className="text-sm font-semibold text-ink">{item.score}</div>
+                  <div className="text-xs text-success">{item.delta}</div>
                 </div>
               </div>
             ))}

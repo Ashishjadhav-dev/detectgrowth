@@ -78,6 +78,11 @@ func main() {
 	mux.HandleFunc("GET /api/v1/dashboard/insights", dashboardInsightsHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/tasks", dashboardTasksHandler)
 	mux.HandleFunc("GET /api/v1/dashboard/activity", dashboardActivityHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/signals", api.dashboardSignalsHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/opportunities", api.dashboardOpportunitiesHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/watchlist", api.dashboardWatchlistHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/pipeline", api.dashboardPipelineHandler)
+	mux.HandleFunc("GET /api/v1/dashboard/trending", api.dashboardTrendingHandler)
 
 	server := &http.Server{
 		Addr:              ":" + port,
@@ -140,6 +145,82 @@ func (a *app) dashboardSummaryHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Meta: map[string]any{"requestId": requestID(r), "workspaceId": a.workspaceID},
 	})
+}
+
+func (a *app) dashboardSignalsHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), `
+		SELECT s.id::text, s.title, COALESCE(c.name, 'Unknown company'),
+		       COALESCE(s.confidence, 0), s.impact
+		FROM signals s LEFT JOIN companies c ON c.id = s.company_id
+		WHERE s.workspace_id = $1 ORDER BY s.detected_at DESC NULLS LAST, s.created_at DESC LIMIT 5`, a.workspaceID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load dashboard signals."); return }
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() {
+		var id, title, company, impact string
+		var confidence float64
+		if err := rows.Scan(&id, &title, &company, &confidence, &impact); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read dashboard signals."); return }
+		data = append(data, map[string]any{"id": id, "type": title, "company": company, "confidence": confidence, "impact": impact})
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) dashboardOpportunitiesHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), `
+		SELECT o.id::text, COALESCE(c.name, 'Unknown company'), COALESCE(c.industry, ''),
+		       COALESCE(o.score, 0), COALESCE(c.employee_range, ''),
+		       COALESCE((SELECT title FROM signals s WHERE s.company_id = o.company_id ORDER BY s.detected_at DESC NULLS LAST LIMIT 1), '')
+		FROM opportunities o LEFT JOIN companies c ON c.id = o.company_id
+		WHERE o.workspace_id = $1 ORDER BY o.score DESC NULLS LAST LIMIT 5`, a.workspaceID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load dashboard opportunities."); return }
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() {
+		var id, company, industry, employees, signal string
+		var score int
+		if err := rows.Scan(&id, &company, &industry, &score, &employees, &signal); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read dashboard opportunities."); return }
+		data = append(data, map[string]any{"id": id, "company": company, "industry": industry, "score": score, "employees": employees, "signal": signal})
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) dashboardWatchlistHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, apiResponse{Data: []map[string]any{}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) dashboardPipelineHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), `
+		SELECT pipeline_stage, COUNT(*), COALESCE(SUM(expected_value), 0)
+		FROM opportunities WHERE workspace_id = $1 GROUP BY pipeline_stage
+		ORDER BY pipeline_stage`, a.workspaceID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load dashboard pipeline."); return }
+	defer rows.Close()
+	data := make([]map[string]string, 0)
+	for rows.Next() {
+		var stage string
+		var count int
+		var value float64
+		if err := rows.Scan(&stage, &count, &value); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read dashboard pipeline."); return }
+		data = append(data, map[string]string{"title": stage, "count": strconv.Itoa(count), "value": "$" + strconv.FormatFloat(value, 'f', 0, 64)})
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) dashboardTrendingHandler(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), `
+		SELECT c.name, COUNT(s.id) AS signal_count
+		FROM companies c LEFT JOIN signals s ON s.company_id = c.id
+		WHERE c.workspace_id = $1 GROUP BY c.id, c.name ORDER BY signal_count DESC, c.name LIMIT 5`, a.workspaceID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load trending companies."); return }
+	defer rows.Close()
+	data := make([]map[string]string, 0)
+	for rows.Next() {
+		var name string
+		var score int
+		if err := rows.Scan(&name, &score); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read trending companies."); return }
+		data = append(data, map[string]string{"name": name, "score": strconv.Itoa(score), "delta": "0"})
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func dashboardInsightsHandler(w http.ResponseWriter, r *http.Request) {
