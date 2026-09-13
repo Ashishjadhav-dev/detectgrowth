@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SearchInput } from "@/components/ui/search-input";
 import { SectionHeader } from "@/components/ui/patterns";
+import { runResearch, type ResearchResult } from "@/lib/api/research";
 
 const prompts = ["Market Position", "SWOT Analysis", "Sales Approach", "Pain Points", "Growth Potential"];
 
@@ -12,6 +13,9 @@ export function ResearchView() {
   const [query, setQuery] = useState("");
   const [selectedPrompt, setSelectedPrompt] = useState(prompts[0]);
   const [hasRun, setHasRun] = useState(false);
+  const [result, setResult] = useState<ResearchResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   return (
     <div className="space-y-5">
@@ -34,13 +38,11 @@ export function ResearchView() {
           </div>
           <Button
             onClick={() => {
-              if (query.trim()) {
-                setHasRun(true);
-              }
+              if (query.trim()) { setLoading(true); setError(null); runResearch(query).then((data) => { setResult(data); setHasRun(true); }).catch((requestError: Error) => setError(requestError.message)).finally(() => setLoading(false)); }
             }}
           >
             <Wand2 className="size-4" />
-            Start research
+            {loading ? "Loading evidence…" : "Start research"}
           </Button>
         </div>
 
@@ -62,12 +64,7 @@ export function ResearchView() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            {[
-              ["Market position", "Understand category, competitors, and buyer segments."],
-              ["Signals", "Show hiring, product, funding, and website evidence."],
-              ["SWOT", "Surface strengths, weaknesses, opportunities, and risks."],
-              ["Sales approach", "Recommend the right channel, offer, and opener."],
-            ].map(([title, text]) => (
+            {(result?.evidence.length ? result.evidence.slice(0, 4).map((item) => [item.title, item.description || `${item.impact} impact · ${item.confidence}% confidence`] as [string, string]) : [["Live evidence", "Run research against a company already stored in PostgreSQL."], ["Sources", "External source links are preserved when the signal worker has them."]]).map(([title, text]) => (
               <div key={title} className="rounded-2xl border border-border bg-white p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-ink">
                   <Sparkles className="size-4 text-primary" />
@@ -83,11 +80,9 @@ export function ResearchView() {
           <div className="mx-auto grid size-14 place-items-center rounded-full bg-primary-soft text-primary">
             <Sparkles className="size-6" />
           </div>
-          <h2 className="mt-4 text-lg font-semibold text-ink">{hasRun ? `Research ready for ${query}` : "Start a research report"}</h2>
+          <h2 className="mt-4 text-lg font-semibold text-ink">{hasRun && result ? `Research ready for ${result.company.name}` : "Start a research report"}</h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted">
-            {hasRun
-              ? `Selected prompt: ${selectedPrompt}. Results should include structured findings, evidence, and a recommended next step.`
-              : "Results should be structured, cite evidence, and include follow-up actions instead of returning only plain text."}
+            {error ? error : hasRun && result ? `${selectedPrompt}: ${result.evidence.length} evidence records loaded at ${new Date(result.generatedAt).toLocaleString()}.` : "Results are loaded from your workspace company and signal records."}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             {["Market Position", "SWOT Analysis", "Sales Approach", "Pain Points", "Growth Potential"].map((item) => (
@@ -100,6 +95,7 @@ export function ResearchView() {
               </button>
             ))}
           </div>
+          {result?.evidence.length ? <div className="mt-5 space-y-2 text-left"><div className="text-sm font-semibold text-ink">Evidence timeline</div>{result.evidence.map((item) => <div key={item.id} className="rounded-2xl border border-border bg-white p-3"><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium text-ink">{item.title}</span><span className="text-xs text-muted">{item.confidence}% confidence</span></div><p className="mt-1 text-sm text-muted">{item.description || "No description provided."}</p>{item.sourceUrl && <a className="mt-1 block truncate text-xs text-primary" href={item.sourceUrl} target="_blank" rel="noreferrer">{item.sourceUrl}</a>}</div>)}</div> : null}
         </div>
       </Card>
     </div>

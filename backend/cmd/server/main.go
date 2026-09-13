@@ -80,6 +80,7 @@ func main() {
 	mux.HandleFunc("POST /api/v1/auth/sign-in", api.signIn)
 	mux.HandleFunc("POST /api/v1/auth/sign-out", api.signOut)
 	mux.HandleFunc("GET /api/v1/me", api.me)
+	mux.HandleFunc("GET /api/v1/research", api.research)
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
 	mux.HandleFunc("GET /api/v1/companies/{companyID}", api.getCompany)
@@ -256,6 +257,20 @@ func (a *app) dashboardSummaryHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Meta: map[string]any{"requestId": requestID(r), "workspaceId": a.workspaceIDFor(r)},
 	})
+}
+
+func (a *app) research(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if query == "" { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "A company name or domain is required."); return }
+	var company Company
+	err := a.db.QueryRowContext(r.Context(), `SELECT id::text, name, COALESCE(domain, ''), COALESCE(industry, ''), COALESCE(location, ''), COALESCE(employee_range, ''), status, created_at, updated_at FROM companies WHERE workspace_id = $1 AND (name ILIKE $2 OR COALESCE(domain, '') ILIKE $2) ORDER BY updated_at DESC LIMIT 1`, a.workspaceIDFor(r), "%"+query+"%").Scan(&company.ID, &company.Name, &company.Domain, &company.Industry, &company.Location, &company.EmployeeRange, &company.Status, &company.CreatedAt, &company.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "No matching company exists in this workspace."); return }
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load research subject."); return }
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, title, COALESCE(description, ''), INITCAP(impact), COALESCE(detected_at, created_at), COALESCE(confidence, 0), COALESCE(source_url, '') FROM signals WHERE workspace_id = $1 AND company_id = $2 ORDER BY COALESCE(detected_at, created_at) DESC LIMIT 20`, a.workspaceIDFor(r), company.ID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load research evidence."); return }
+	defer rows.Close(); evidence := make([]map[string]any, 0)
+	for rows.Next() { var id, title, description, impact, sourceURL string; var detected time.Time; var confidence float64; if err := rows.Scan(&id, &title, &description, &impact, &detected, &confidence, &sourceURL); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read research evidence."); return }; evidence = append(evidence, map[string]any{"id": id, "title": title, "description": description, "impact": impact, "detectedAt": detected.Format(time.RFC3339), "confidence": confidence, "sourceUrl": sourceURL}) }
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"company": company, "evidence": evidence, "generatedAt": time.Now().UTC().Format(time.RFC3339)}, Meta: map[string]any{"requestId": requestID(r), "source": "workspace PostgreSQL records"}})
 }
 
 func formatCurrency(value float64) string {
