@@ -130,9 +130,25 @@ export function DashboardView() {
   const [dashboardError, setDashboardError] = useState<string | null>(null);
 
   useEffect(() => {
-    getDashboardData()
-      .then(setDashboard)
-      .catch((error: Error) => setDashboardError(error.message));
+    let cancelled = false;
+    const loadDashboard = () => {
+      getDashboardData()
+        .then((data) => {
+          if (!cancelled) {
+            setDashboard(data);
+            setDashboardError(null);
+          }
+        })
+        .catch((error: Error) => {
+          if (!cancelled) setDashboardError(error.message);
+        });
+    };
+    loadDashboard();
+    const refreshTimer = window.setInterval(loadDashboard, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+    };
   }, []);
 
   const dashboardSummary = dashboard?.summary;

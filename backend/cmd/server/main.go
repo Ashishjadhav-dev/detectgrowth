@@ -186,7 +186,20 @@ func (a *app) dashboardOpportunitiesHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (a *app) dashboardWatchlistHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, apiResponse{Data: []map[string]any{}, Meta: map[string]any{"requestId": requestID(r)}})
+	rows, err := a.db.QueryContext(r.Context(), `
+		SELECT c.name, w.score, w.delta
+		FROM watchlist_items w JOIN companies c ON c.id = w.company_id
+		WHERE w.workspace_id = $1 ORDER BY w.score DESC, c.name LIMIT 10`, a.workspaceID)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load watchlist."); return }
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() {
+		var name, delta string
+		var score int
+		if err := rows.Scan(&name, &score, &delta); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read watchlist."); return }
+		data = append(data, map[string]any{"name": name, "score": score, "delta": delta})
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func (a *app) dashboardPipelineHandler(w http.ResponseWriter, r *http.Request) {
