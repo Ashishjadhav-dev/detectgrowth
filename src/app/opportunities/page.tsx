@@ -1,2 +1,5 @@
-import { redirect } from "next/navigation";
-export default function Page(){ redirect("/opportunities/abc-fashion"); }
+import { OpportunitiesView } from "@/features/opportunities/opportunities-view";
+
+export default function Page() {
+  return <OpportunitiesView />;
+}

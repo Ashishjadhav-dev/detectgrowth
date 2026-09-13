@@ -2,6 +2,11 @@ import { apiRequest } from "./client";
 
 export type ApiOpportunity = { id: string; company: string; industry: string; location: string; score: number; employees: string; stage: string; status?: string };
 
+export function listOpportunities(query?: string) {
+  const params = query?.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+  return apiRequest<ApiOpportunity[]>(`/api/v1/opportunities${params}`);
+}
+
 export function getOpportunity(id: string) {
   return apiRequest<ApiOpportunity>(`/api/v1/opportunities/${encodeURIComponent(id)}`);
 }
