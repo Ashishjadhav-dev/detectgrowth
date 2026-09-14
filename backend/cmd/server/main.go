@@ -81,6 +81,8 @@ func main() {
 	mux.HandleFunc("POST /api/v1/auth/sign-out", api.signOut)
 	mux.HandleFunc("GET /api/v1/me", api.me)
 	mux.HandleFunc("GET /api/v1/research", api.research)
+	mux.HandleFunc("GET /api/v1/settings/icp", api.getICP)
+	mux.HandleFunc("PATCH /api/v1/settings/icp", api.updateICP)
 	mux.HandleFunc("GET /api/v1/events", api.events)
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
@@ -288,6 +290,23 @@ func (a *app) events(w http.ResponseWriter, r *http.Request) {
 		if err == nil && signature != lastSignature { lastSignature = signature; _, _ = fmt.Fprintf(w, "event: dashboard\ndata: {\"signature\":%q}\n\n", signature); flusher.Flush() }
 		select { case <-r.Context().Done(): return; case <-ticker.C: }
 	}
+}
+
+func (a *app) getICP(w http.ResponseWriter, r *http.Request) {
+	var raw []byte
+	err := a.db.QueryRowContext(r.Context(), `SELECT icp FROM workspace_settings WHERE workspace_id = $1`, a.workspaceIDFor(r)).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) { raw = []byte(`{"industries":"","locations":"","employeeSize":"","revenue":"","signals":{}}`) } else if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load ICP settings."); return }
+	var settings map[string]any; if err := json.Unmarshal(raw, &settings); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to parse ICP settings."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: settings, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) updateICP(w http.ResponseWriter, r *http.Request) {
+	var settings map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid ICP settings payload."); return }
+	raw, err := json.Marshal(settings); if err != nil { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid ICP settings payload."); return }
+	_, err = a.db.ExecContext(r.Context(), `INSERT INTO workspace_settings (workspace_id, icp, updated_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (workspace_id) DO UPDATE SET icp = EXCLUDED.icp, updated_at = now()`, a.workspaceIDFor(r), string(raw))
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to save ICP settings."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: settings, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func formatCurrency(value float64) string {

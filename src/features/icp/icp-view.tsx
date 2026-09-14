@@ -1,9 +1,11 @@
 "use client";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Database, Target, TrendingUp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionHeader } from "@/components/ui/patterns";
+import { getICP, updateICP } from "@/lib/api/icp";
+import { listCompanies, type ApiCompany } from "@/lib/api/companies";
 
 const Field = ({ label, children }: { label: string; children: ReactNode }) => (
   <label className="block">
@@ -13,25 +15,27 @@ const Field = ({ label, children }: { label: string; children: ReactNode }) => (
 );
 
 export function IcpView() {
-  const [industries, setIndustries] = useState("E-commerce, D2C");
-  const [locations, setLocations] = useState("India, US");
-  const [employeeSize, setEmployeeSize] = useState("20-1,000 employees");
-  const [revenue, setRevenue] = useState("$1M-$50M");
+  const [industries, setIndustries] = useState("");
+  const [locations, setLocations] = useState("");
+  const [employeeSize, setEmployeeSize] = useState("");
+  const [revenue, setRevenue] = useState("");
   const [signals, setSignals] = useState({
-    hiring: true,
-    website: true,
-    marketing: true,
-    launch: true,
+    hiring: false,
+    website: false,
+    marketing: false,
+    launch: false,
     expansion: false,
     tech: false,
   });
+  const [companies, setCompanies] = useState<ApiCompany[]>([]); const [message, setMessage] = useState("");
+  useEffect(() => { getICP().then((settings) => { setIndustries(settings.industries || ""); setLocations(settings.locations || ""); setEmployeeSize(settings.employeeSize || ""); setRevenue(settings.revenue || ""); setSignals((current) => ({ ...current, ...(settings.signals || {}) })); }).catch(() => setMessage("Unable to load ICP settings.")); listCompanies().then(setCompanies).catch(() => undefined); }, []);
 
   const selectedSignalCount = Object.values(signals).filter(Boolean).length;
   const fitScore = useMemo(() => {
-    const base = 72;
-    const bonus = selectedSignalCount * 4 + (industries.includes("D2C") ? 5 : 0) + (locations.includes("US") ? 4 : 0);
-    return Math.min(99, base + bonus);
-  }, [industries, locations, selectedSignalCount]);
+    return Math.min(99, selectedSignalCount * 10 + (industries ? 20 : 0) + (locations ? 20 : 0) + (employeeSize ? 15 : 0) + (revenue ? 15 : 0));
+  }, [industries, locations, employeeSize, revenue, selectedSignalCount]);
+  const matchingCompanies = companies.filter((company) => (!industries || industries.toLowerCase().split(",").some((item) => company.industry.toLowerCase().includes(item.trim()))) && (!locations || locations.toLowerCase().split(",").some((item) => company.location.toLowerCase().includes(item.trim()))));
+  const save = () => { setMessage("Saving…"); updateICP({ industries, locations, employeeSize, revenue, signals }).then(() => setMessage("ICP saved to PostgreSQL.")).catch((error: Error) => setMessage(error.message)); };
 
   return (
     <div className="space-y-5">
@@ -41,7 +45,7 @@ export function IcpView() {
           <h1 className="page-title mt-2">Define your ideal customer profile</h1>
           <p className="mt-1 text-sm text-muted">Shape the matching logic, signal priorities, and qualification thresholds for discovery.</p>
         </div>
-        <Button>Save & find opportunities</Button>
+        <Button onClick={save}>Save & find opportunities</Button>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[.85fr_1.15fr]">
@@ -55,11 +59,11 @@ export function IcpView() {
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-border bg-white p-4">
                 <div className="text-xs uppercase tracking-[0.12em] text-subtle">Matching companies</div>
-                <div className="mt-2 text-2xl font-semibold text-ink">1,284</div>
+                <div className="mt-2 text-2xl font-semibold text-ink">{matchingCompanies.length}</div>
               </div>
               <div className="rounded-2xl border border-border bg-white p-4">
                 <div className="text-xs uppercase tracking-[0.12em] text-subtle">High fit</div>
-                <div className="mt-2 text-2xl font-semibold text-ink">{Math.max(100, fitScore * 2)}</div>
+                <div className="mt-2 text-2xl font-semibold text-ink">{matchingCompanies.filter((company) => company.status === "active").length}</div>
               </div>
             </div>
           </div>
@@ -119,19 +123,20 @@ export function IcpView() {
             </div>
           </div>
 
-          <Button className="mt-5 w-full">
+          <Button className="mt-5 w-full" onClick={save}>
             <Database className="size-4" />
             Save ICP and update matching
           </Button>
+          {message && <div className="mt-3 text-center text-sm text-muted">{message}</div>}
         </Card>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Fit score", String(fitScore), "Strong alignment", TrendingUp],
+          ["Fit score", String(fitScore), "From saved criteria", TrendingUp],
           ["Signals watched", String(selectedSignalCount), "High priority", Users],
-          ["Sources connected", "4", "Live data", Database],
-          ["Recommended matches", String(Math.max(80, fitScore * 2)), "Ready to review", Target],
+          ["Sources connected", "2", "GDELT + Hacker News", Database],
+          ["Recommended matches", String(matchingCompanies.length), "Current workspace", Target],
         ].map(([title, value, hint, Icon]) => (
           <Card key={title as string} className="glass-card p-4">
             <div className="flex items-start justify-between gap-3">
