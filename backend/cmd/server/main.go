@@ -83,6 +83,8 @@ func main() {
 	mux.HandleFunc("GET /api/v1/research", api.research)
 	mux.HandleFunc("GET /api/v1/settings/icp", api.getICP)
 	mux.HandleFunc("PATCH /api/v1/settings/icp", api.updateICP)
+	mux.HandleFunc("GET /api/v1/integrations", api.listIntegrations)
+	mux.HandleFunc("PATCH /api/v1/integrations/{provider}", api.updateIntegration)
 	mux.HandleFunc("GET /api/v1/events", api.events)
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
@@ -307,6 +309,35 @@ func (a *app) updateICP(w http.ResponseWriter, r *http.Request) {
 	_, err = a.db.ExecContext(r.Context(), `INSERT INTO workspace_settings (workspace_id, icp, updated_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (workspace_id) DO UPDATE SET icp = EXCLUDED.icp, updated_at = now()`, a.workspaceIDFor(r), string(raw))
 	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to save ICP settings."); return }
 	writeJSON(w, http.StatusOK, apiResponse{Data: settings, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+type integrationDefinition struct { Provider string `json:"provider"`; Name string `json:"name"`; Kind string `json:"kind"`; Description string `json:"description"` }
+var integrationDefinitions = []integrationDefinition{
+	{Provider: "gdelt", Name: "GDELT", Kind: "public", Description: "Open global news and event data."},
+	{Provider: "hacker_news", Name: "Hacker News", Kind: "public", Description: "Open technology discussions and stories."},
+	{Provider: "linkedin", Name: "LinkedIn", Kind: "oauth", Description: "Requires an approved LinkedIn application and OAuth permissions."},
+	{Provider: "google_business", Name: "Google Business Profile", Kind: "oauth", Description: "Requires Google OAuth and Business Profile access."},
+	{Provider: "instagram", Name: "Instagram Graph", Kind: "oauth", Description: "Requires Meta app review and Instagram Graph permissions."},
+}
+
+func (a *app) listIntegrations(w http.ResponseWriter, r *http.Request) {
+	rows, err := a.db.QueryContext(r.Context(), `SELECT provider, kind, status, COALESCE(last_synced_at, 'epoch'), error_message FROM integration_connections WHERE workspace_id = $1`, a.workspaceIDFor(r))
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load integrations."); return }
+	defer rows.Close(); statuses := map[string]map[string]any{}
+	for rows.Next() { var provider, kind, status, errorMessage string; var lastSynced time.Time; if err := rows.Scan(&provider, &kind, &status, &lastSynced, &errorMessage); err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read integrations."); return }; statuses[provider] = map[string]any{"kind": kind, "status": status, "lastSyncedAt": lastSynced.Format(time.RFC3339), "error": errorMessage} }
+	data := make([]map[string]any, 0, len(integrationDefinitions)); for _, definition := range integrationDefinitions { state := statuses[definition.Provider]; if state == nil { status := "not_configured"; if definition.Kind == "public" { status = "available" }; state = map[string]any{"kind": definition.Kind, "status": status, "lastSyncedAt": "", "error": ""} }; data = append(data, map[string]any{"provider": definition.Provider, "name": definition.Name, "kind": definition.Kind, "description": definition.Description, "status": state["status"], "lastSyncedAt": state["lastSyncedAt"], "error": state["error"]}) }
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) updateIntegration(w http.ResponseWriter, r *http.Request) {
+	provider := r.PathValue("provider"); definition := integrationDefinition{}
+	for _, candidate := range integrationDefinitions { if candidate.Provider == provider { definition = candidate; break } }
+	if definition.Provider == "" { writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Integration provider not found."); return }
+	var input struct { Status string `json:"status"` }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || (input.Status != "connected" && input.Status != "disabled") { writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Status must be connected or disabled."); return }
+	_, err := a.db.ExecContext(r.Context(), `INSERT INTO integration_connections (workspace_id, provider, kind, status, updated_at) VALUES ($1, $2, $3, $4, now()) ON CONFLICT (workspace_id, provider) DO UPDATE SET status = EXCLUDED.status, updated_at = now()`, a.workspaceIDFor(r), provider, definition.Kind, input.Status)
+	if err != nil { writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update integration."); return }
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]string{"provider": provider, "status": input.Status}, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func formatCurrency(value float64) string {

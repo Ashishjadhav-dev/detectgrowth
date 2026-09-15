@@ -69,6 +69,7 @@ func collectGDELT(ctx context.Context, db *sql.DB, workspaceID, query string) er
 		if err != nil { return err }
 	}
 	log.Printf("GDELT: processed %d articles", len(result.Articles))
+	markIntegration(ctx, db, workspaceID, "gdelt")
 	return nil
 }
 
@@ -90,7 +91,12 @@ func collectHackerNews(ctx context.Context, db *sql.DB, workspaceID string) erro
 		if err != nil { return err }
 	}
 	log.Printf("Hacker News: processed %d stories", limit)
+	markIntegration(ctx, db, workspaceID, "hacker_news")
 	return nil
+}
+
+func markIntegration(ctx context.Context, db *sql.DB, workspaceID, provider string) {
+	_, _ = db.ExecContext(ctx, `INSERT INTO integration_connections (workspace_id, provider, kind, status, last_synced_at, updated_at) VALUES ($1, $2, 'public', 'connected', now(), now()) ON CONFLICT (workspace_id, provider) DO UPDATE SET status = 'connected', last_synced_at = now(), error_message = '', updated_at = now()`, workspaceID, provider)
 }
 
 func getJSON(ctx context.Context, endpoint string, target any) error {
