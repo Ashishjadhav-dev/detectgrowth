@@ -44,9 +44,18 @@ function decodeEntities(value: string) {
 }
 
 function stripHtml(value: unknown) {
-  return typeof value === "string"
-    ? decodeEntities(value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim())
-    : "";
+  if (typeof value !== "string") return "";
+  let text = value;
+  // Some feeds return escaped HTML (for example &lt;div&gt;), so decode first.
+  for (let pass = 0; pass < 2; pass += 1) text = decodeEntities(text);
+  return text
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|section|article|ul|ol)>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n+/g, "\n")
+    .trim();
 }
 
 function workplace(location: string, remote?: boolean) {
