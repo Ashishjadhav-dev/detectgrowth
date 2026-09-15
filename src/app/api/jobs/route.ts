@@ -3,15 +3,43 @@ import type { JobListing, JobSource, JobsResponse } from "@/types/jobs";
 
 export const revalidate = 300;
 
-const feeds: Array<{ source: JobSource; url: string }> = [
-  { source: "Arbeitnow", url: "https://www.arbeitnow.com/api/job-board-api?page=2&search=" },
-  { source: "Airbnb", url: "https://boards-api.greenhouse.io/v1/boards/airbnb/jobs?content=true" },
-  { source: "Netflix", url: "https://api.lever.co/v0/postings/netflix?mode=json" },
-];
+const DEFAULT_GREENHOUSE_BOARDS = ["airbnb"];
+const DEFAULT_LEVER_BOARDS = ["netflix"];
+
+function boardSlugs(value: string | null, fallback: string[]) {
+  const values = (value ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
+  return [...new Set(values.length ? values : fallback)];
+}
+
+function displayName(slug: string) {
+  return slug.split(/[-_]+/).map((word) => word ? word[0].toUpperCase() + word.slice(1) : "").join(" ");
+}
+
+function feedsFor(request: Request) {
+  const params = new URL(request.url).searchParams;
+  const greenhouse = boardSlugs(params.get("greenhouse"), DEFAULT_GREENHOUSE_BOARDS);
+  const lever = boardSlugs(params.get("lever"), DEFAULT_LEVER_BOARDS);
+  return [
+    { source: "Arbeitnow", url: "https://www.arbeitnow.com/api/job-board-api?page=2&search=", kind: "arbeitnow" as const },
+    ...greenhouse.map((slug) => ({ source: `Greenhouse · ${displayName(slug)}`, url: `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(slug)}/jobs?content=true`, kind: "greenhouse" as const, company: displayName(slug) })),
+    ...lever.map((slug) => ({ source: `Lever · ${displayName(slug)}`, url: `https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`, kind: "lever" as const, company: displayName(slug) })),
+  ];
+}
+
+function decodeEntities(value: string) {
+  const named: Record<string, string> = { amp: "&", nbsp: " ", apos: "'", quot: '"', lt: "<", gt: ">", ndash: "–", mdash: "—", hellip: "…" };
+  return value.replace(/&#(x?[\da-f]+);|&([a-z]+);/gi, (match, numeric, name) => {
+    if (numeric) {
+      const code = numeric[0].toLowerCase() === "x" ? parseInt(numeric.slice(1), 16) : parseInt(numeric, 10);
+      return Number.isNaN(code) ? match : String.fromCodePoint(code);
+    }
+    return named[name.toLowerCase()] ?? match;
+  });
+}
 
 function stripHtml(value: unknown) {
   return typeof value === "string"
-    ? value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim()
+    ? decodeEntities(value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim())
     : "";
 }
 
@@ -42,27 +70,29 @@ function arbeitnowJobs(payload: { data?: Array<Record<string, unknown>> }): JobL
       location,
       workplace: workplace(location, Boolean(job.remote)),
       source: "Arbeitnow",
+      tags: Array.isArray(job.tags) ? job.tags.map(String).filter((tag) => tag.toLowerCase() !== "remote") : [],
       description: stripHtml(job.description),
       url: String(job.url ?? "https://www.arbeitnow.com/"),
       postedAt: dateValue(job.created_at),
-      department: Array.isArray(job.tags) ? String(job.tags[0] ?? "") : "",
+      department: String(job.category ?? ""),
       employmentType: Array.isArray(job.job_types) ? String(job.job_types[0] ?? "") : "",
       logoUrl: typeof job.company_logo === "string" ? job.company_logo : undefined,
     };
   });
 }
 
-function greenhouseJobs(payload: { jobs?: Array<Record<string, unknown>> }): JobListing[] {
+function greenhouseJobs(payload: { jobs?: Array<Record<string, unknown>> }, source: string, company: string): JobListing[] {
   return (payload.jobs ?? []).map((job) => {
     const location = typeof job.location === "object" && job.location ? String((job.location as Record<string, unknown>).name ?? "") : "";
     const departments = Array.isArray(job.departments) ? job.departments as Array<Record<string, unknown>> : [];
     return {
-      id: `airbnb-${String(job.id)}`,
+      id: `${source.toLowerCase().replace(/[^a-z]+/g, "-")}-${String(job.id)}`,
       title: String(job.title ?? "Untitled role"),
-      company: "Airbnb",
+      company,
       location,
       workplace: workplace(location),
-      source: "Airbnb",
+      source,
+      tags: departments.map((department) => String(department.name ?? "")).filter(Boolean),
       description: stripHtml(job.content),
       url: String(job.absolute_url ?? "https://careers.airbnb.com/"),
       postedAt: dateValue(job.updated_at),
@@ -72,17 +102,18 @@ function greenhouseJobs(payload: { jobs?: Array<Record<string, unknown>> }): Job
   });
 }
 
-function leverJobs(payload: Array<Record<string, unknown>>): JobListing[] {
+function leverJobs(payload: Array<Record<string, unknown>>, source: string, company: string): JobListing[] {
   return payload.map((job) => {
     const categories = typeof job.categories === "object" && job.categories ? job.categories as Record<string, unknown> : {};
     const location = String(categories.location ?? "");
     return {
-      id: `netflix-${String(job.id)}`,
+      id: `${source.toLowerCase().replace(/[^a-z]+/g, "-")}-${String(job.id)}`,
       title: String(job.text ?? "Untitled role"),
-      company: "Netflix",
+      company,
       location,
       workplace: workplace(location),
-      source: "Netflix",
+      source,
+      tags: [String(categories.team ?? ""), String(categories.department ?? "")].filter(Boolean),
       description: stripHtml(job.descriptionPlain ?? job.description),
       url: String(job.hostedUrl ?? job.applyUrl ?? "https://jobs.netflix.com/"),
       postedAt: dateValue(job.createdAt),
@@ -92,16 +123,17 @@ function leverJobs(payload: Array<Record<string, unknown>>): JobListing[] {
   });
 }
 
-async function fetchFeed(feed: (typeof feeds)[number]) {
+async function fetchFeed(feed: ReturnType<typeof feedsFor>[number]) {
   const response = await fetch(feed.url, { next: { revalidate: 300 }, headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   const payload = await response.json();
-  if (feed.source === "Arbeitnow") return arbeitnowJobs(payload);
-  if (feed.source === "Airbnb") return greenhouseJobs(payload);
-  return leverJobs(payload);
+  if (feed.kind === "arbeitnow") return arbeitnowJobs(payload);
+  if (feed.kind === "greenhouse") return greenhouseJobs(payload, feed.source, feed.company);
+  return leverJobs(payload, feed.source, feed.company);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const feeds = feedsFor(request);
   const results = await Promise.allSettled(feeds.map(fetchFeed));
   const jobs: JobListing[] = [];
   const sources = {} as JobsResponse["sources"];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, BriefcaseBusiness, CalendarDays, Check, ChevronDown, MapPin, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { JobListing, JobSource, JobsResponse } from "@/types/jobs";
 
-const sourceOptions: Array<"All sources" | JobSource> = ["All sources", "Arbeitnow", "Airbnb", "Netflix"];
 const workplaceOptions = ["All workplaces", "Remote", "Hybrid", "On-site"] as const;
 
 function relativeDate(value: string | null) {
@@ -22,7 +21,7 @@ function relativeDate(value: string | null) {
 }
 
 function sourceClass(source: JobSource) {
-  return source === "Airbnb" ? "bg-[#ffebe9] text-[#d65348]" : source === "Netflix" ? "bg-[#fff2d6] text-[#b26b00]" : "bg-primary-soft text-primary";
+  return source.startsWith("Greenhouse") ? "bg-[#ffebe9] text-[#d65348]" : source.startsWith("Lever") ? "bg-[#fff2d6] text-[#b26b00]" : "bg-primary-soft text-primary";
 }
 
 function JobCard({ job }: { job: JobListing }) {
@@ -63,18 +62,21 @@ function JobCard({ job }: { job: JobListing }) {
 export function JobsView() {
   const [data, setData] = useState<JobsResponse | null>(null);
   const [query, setQuery] = useState("");
-  const [source, setSource] = useState<(typeof sourceOptions)[number]>("All sources");
+  const [source, setSource] = useState("All sources");
   const [workplaceFilter, setWorkplaceFilter] = useState<(typeof workplaceOptions)[number]>("All workplaces");
   const [sort, setSort] = useState("Newest");
+  const [greenhouseBoards, setGreenhouseBoards] = useState("airbnb");
+  const [leverBoards, setLeverBoards] = useState("netflix");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadJobs = () => {
+  const loadJobs = useCallback(() => {
     setLoading(true);
-    fetch("/api/jobs").then(async (response) => { if (!response.ok) throw new Error("Unable to load job feeds"); return response.json() as Promise<JobsResponse>; }).then((payload) => { setData(payload); setError(null); }).catch((requestError: Error) => setError(requestError.message)).finally(() => setLoading(false));
-  };
+    const params = new URLSearchParams({ greenhouse: greenhouseBoards, lever: leverBoards });
+    fetch(`/api/jobs?${params}`).then(async (response) => { if (!response.ok) throw new Error("Unable to load job feeds"); return response.json() as Promise<JobsResponse>; }).then((payload) => { setData(payload); setSource("All sources"); setError(null); }).catch((requestError: Error) => setError(requestError.message)).finally(() => setLoading(false));
+  }, [greenhouseBoards, leverBoards]);
 
-  useEffect(() => { loadJobs(); }, []);
+  useEffect(() => { loadJobs(); }, [loadJobs]);
 
   const filteredJobs = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -84,6 +86,7 @@ export function JobsView() {
     }).sort((a, b) => sort === "Company" ? a.company.localeCompare(b.company) : (new Date(b.postedAt ?? 0).getTime() - new Date(a.postedAt ?? 0).getTime()));
   }, [data, query, sort, source, workplaceFilter]);
 
+  const sourceOptions = ["All sources", ...Object.keys(data?.sources ?? {})];
   const availableCount = Object.values(data?.sources ?? {}).filter((item) => item.ok).length;
   return <div className="space-y-6">
     <section className="relative overflow-hidden rounded-[28px] bg-[#111a2d] px-6 py-7 text-white shadow-[0_20px_60px_rgba(17,26,45,.16)] md:px-8 md:py-9">
@@ -94,6 +97,7 @@ export function JobsView() {
 
     <section className="grid gap-3 sm:grid-cols-3"><Card className="glass-card p-4"><div className="text-xs font-medium text-muted">Active openings</div><div className="mt-2 text-2xl font-semibold text-ink">{loading ? "—" : filteredJobs.length.toLocaleString()}</div><div className="mt-1 text-xs text-muted">matching your filters</div></Card><Card className="glass-card p-4"><div className="text-xs font-medium text-muted">Career sources</div><div className="mt-2 text-2xl font-semibold text-ink">{loading ? "—" : `${availableCount}/3`}</div><div className="mt-1 text-xs text-muted">feeds available now</div></Card><Card className="glass-card p-4"><div className="text-xs font-medium text-muted">Last refreshed</div><div className="mt-2 text-2xl font-semibold text-ink">{data ? relativeDate(data.fetchedAt) : "—"}</div><div className="mt-1 text-xs text-muted">updates every 5 minutes</div></Card></section>
 
+    <Card className="glass-card p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><div className="flex items-center gap-2 text-sm font-semibold text-ink"><BriefcaseBusiness className="size-4 text-primary" />Career boards</div><p className="mt-1 text-xs text-muted">Enter public board slugs, separated by commas. Examples: google, stripe, shopify.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:min-w-[540px]"><label className="text-xs font-medium text-muted">Greenhouse boards<Input value={greenhouseBoards} onChange={(event) => setGreenhouseBoards(event.target.value)} placeholder="airbnb, google" className="mt-1.5 h-9" /></label><label className="text-xs font-medium text-muted">Lever boards<Input value={leverBoards} onChange={(event) => setLeverBoards(event.target.value)} placeholder="netflix, stripe" className="mt-1.5 h-9" /></label></div><Button className="h-9 shrink-0" onClick={loadJobs} disabled={loading}><RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />Load boards</Button></div></Card>
     <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div className="flex flex-wrap items-center gap-2"><SlidersHorizontal className="mr-1 size-4 text-muted" />{sourceOptions.map((item) => <button key={item} onClick={() => setSource(item)} className={`rounded-full px-3.5 py-2 text-xs font-semibold transition ${source === item ? "bg-primary text-white shadow-[0_8px_20px_rgba(91,53,230,.22)]" : "bg-white text-muted hover:bg-primary-soft hover:text-primary"}`}>{item}</button>)}</div><div className="flex flex-wrap gap-2"><label className="relative"><span className="sr-only">Workplace</span><select value={workplaceFilter} onChange={(event) => setWorkplaceFilter(event.target.value as typeof workplaceFilter)} className="h-9 appearance-none rounded-xl border border-border bg-white pl-3 pr-8 text-xs font-medium text-muted outline-none focus:border-primary/50">{workplaceOptions.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown className="pointer-events-none absolute right-2.5 top-3 size-3 text-muted" /></label><label className="relative"><span className="sr-only">Sort jobs</span><select value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 appearance-none rounded-xl border border-border bg-white pl-3 pr-8 text-xs font-medium text-muted outline-none focus:border-primary/50"><option>Newest</option><option>Company</option></select><ChevronDown className="pointer-events-none absolute right-2.5 top-3 size-3 text-muted" /></label><Button variant="secondary" className="h-9 px-3 text-xs" onClick={loadJobs} disabled={loading}><RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />Refresh</Button></div></section>
 
     {error ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{error}. Try refreshing the feed.</div> : null}

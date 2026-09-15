@@ -1,4 +1,4 @@
-export type JobSource = "Arbeitnow" | "Airbnb" | "Netflix";
+export type JobSource = string;
 
 export type JobListing = {
   id: string;
@@ -7,6 +7,7 @@ export type JobListing = {
   location: string;
   workplace: "Remote" | "Hybrid" | "On-site" | "Unknown";
   source: JobSource;
+  tags: string[];
   description: string;
   url: string;
   postedAt: string | null;
@@ -17,6 +18,6 @@ export type JobListing = {
 
 export type JobsResponse = {
   jobs: JobListing[];
-  sources: Record<JobSource, { ok: boolean; count: number; error?: string }>;
+  sources: Record<string, { ok: boolean; count: number; error?: string }>;
   fetchedAt: string;
 };
