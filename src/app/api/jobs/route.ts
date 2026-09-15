@@ -23,10 +23,11 @@ function textValue(value: unknown, fallback = "") {
 
 function feedsFor(request: Request) {
   const params = new URL(request.url).searchParams;
+  const search = params.get("search")?.trim() ?? "";
   const greenhouse = boardSlugs(params.get("greenhouse"), DEFAULT_GREENHOUSE_BOARDS);
   const lever = boardSlugs(params.get("lever"), DEFAULT_LEVER_BOARDS);
   return [
-    { source: "Arbeitnow", url: "https://www.arbeitnow.com/api/job-board-api?page=2&search=", kind: "arbeitnow" as const },
+    { source: "Arbeitnow", url: `https://www.arbeitnow.com/api/job-board-api?page=2&search=${encodeURIComponent(search)}`, kind: "arbeitnow" as const },
     ...greenhouse.map((slug) => ({ source: `Greenhouse · ${displayName(slug)}`, url: `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(slug)}/jobs?content=true`, kind: "greenhouse" as const, company: displayName(slug) })),
     ...lever.map((slug) => ({ source: `Lever · ${displayName(slug)}`, url: `https://api.lever.co/v0/postings/${encodeURIComponent(slug)}?mode=json`, kind: "lever" as const, company: displayName(slug) })),
   ];
@@ -164,6 +165,7 @@ async function fetchFeed(feed: ReturnType<typeof feedsFor>[number]) {
 
 export async function GET(request: Request) {
   const feeds = feedsFor(request);
+  const search = new URL(request.url).searchParams.get("search")?.trim().toLowerCase() ?? "";
   const results = await Promise.allSettled(feeds.map(fetchFeed));
   const jobs: JobListing[] = [];
   const sources = {} as JobsResponse["sources"];
@@ -178,6 +180,7 @@ export async function GET(request: Request) {
     }
   });
 
-  const body: JobsResponse = { jobs, sources, fetchedAt: new Date().toISOString() };
+  const matchingJobs = search ? jobs.filter((job) => `${job.title} ${job.company} ${job.location} ${job.department} ${job.employmentType} ${job.source} ${job.description} ${job.tags.join(" ")}`.toLowerCase().includes(search)) : jobs;
+  const body: JobsResponse = { jobs: matchingJobs, sources, fetchedAt: new Date().toISOString() };
   return NextResponse.json(body, { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } });
 }

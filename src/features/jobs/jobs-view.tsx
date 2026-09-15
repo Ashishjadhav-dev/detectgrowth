@@ -91,7 +91,15 @@ function JobDetail({ job }: { job: JobListing }) {
 }
 
 function JobCardSkeleton() {
-  return <Card className="min-w-0 p-4 sm:p-5" aria-hidden="true"><div className="flex items-start gap-3"><Skeleton className="size-11 shrink-0 rounded-2xl" /><div className="min-w-0 flex-1 space-y-2"><Skeleton className="h-5 w-4/5" /><Skeleton className="h-4 w-2/5" /></div><Skeleton className="size-8 rounded-xl" /></div><div className="mt-5 flex gap-4"><Skeleton className="h-4 w-32" /><Skeleton className="h-4 w-20" /></div><div className="mt-4 flex gap-2"><Skeleton className="h-6 w-16 rounded-full" /><Skeleton className="h-6 w-24 rounded-full" /><Skeleton className="h-6 w-20 rounded-full" /></div><div className="mt-4 space-y-2"><Skeleton className="h-3.5 w-full" /><Skeleton className="h-3.5 w-11/12" /><Skeleton className="h-3.5 w-3/5" /></div><div className="mt-5 flex justify-end"><Skeleton className="h-4 w-24" /></div></Card>;
+  return <Card className="min-w-0 p-4" aria-hidden="true"><div className="flex items-start gap-3"><Skeleton className="size-10 shrink-0 rounded-xl" /><div className="min-w-0 flex-1 space-y-2"><Skeleton className="h-4 w-4/5" /><Skeleton className="h-3 w-2/5" /><div className="flex gap-3 pt-1"><Skeleton className="h-3 w-28" /><Skeleton className="h-3 w-16" /></div></div><Skeleton className="size-4 rounded" /></div><div className="mt-3 flex items-center justify-between"><Skeleton className="h-4 w-20 rounded-full" /><Skeleton className="h-3 w-16" /></div></Card>;
+}
+
+function JobDetailSkeleton() {
+  return <Card className="glass-card overflow-hidden" aria-hidden="true"><div className="border-b border-border/80 bg-white p-5 sm:p-6"><div className="flex items-start gap-3"><Skeleton className="size-12 shrink-0 rounded-2xl" /><div className="min-w-0 flex-1 space-y-2"><Skeleton className="h-4 w-24 rounded-full" /><Skeleton className="h-6 w-4/5" /><Skeleton className="h-4 w-2/5" /></div></div><div className="mt-5 flex gap-4"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3.5 w-24" /></div><div className="mt-4 flex gap-2"><Skeleton className="h-5 w-16 rounded-full" /><Skeleton className="h-5 w-24 rounded-full" /><Skeleton className="h-5 w-20 rounded-full" /></div></div><div className="space-y-3 p-5 sm:p-6"><Skeleton className="h-4 w-28" /><Skeleton className="h-3.5 w-full" /><Skeleton className="h-3.5 w-11/12" /><Skeleton className="h-3.5 w-4/5" /><Skeleton className="mt-3 h-4 w-28" /></div></Card>;
+}
+
+function JobsLoadingSkeleton() {
+  return <div className="grid min-h-0 gap-5 lg:h-full lg:grid-cols-[minmax(300px,390px)_minmax(0,1fr)] lg:items-start" aria-label="Loading job listings"><div className="min-w-0 space-y-3"> <div className="flex items-center justify-between px-1 py-2"><Skeleton className="h-4 w-16" /><Skeleton className="h-3 w-20" /></div>{[1, 2, 3, 4, 5, 6].map((item) => <JobCardSkeleton key={item} />)}</div><div className="hidden min-w-0 lg:block lg:pt-14"><JobDetailSkeleton /></div></div>;
 }
 
 export function JobsView() {
@@ -112,11 +120,11 @@ export function JobsView() {
 
   const loadJobs = useCallback(() => {
     setLoading(true);
-    const params = new URLSearchParams({ greenhouse: greenhouseBoards, lever: leverBoards });
+    const params = new URLSearchParams({ greenhouse: greenhouseBoards, lever: leverBoards, search: query.trim() });
     fetch(`/api/jobs?${params}`).then(async (response) => { if (!response.ok) throw new Error("Unable to load job feeds"); return response.json() as Promise<JobsResponse>; }).then((payload) => { setData(payload); setSelectedSources([]); setError(null); }).catch((requestError: Error) => setError(requestError.message)).finally(() => setLoading(false));
-  }, [greenhouseBoards, leverBoards]);
+  }, [greenhouseBoards, leverBoards, query]);
 
-  useEffect(() => { loadJobs(); }, [loadJobs]);
+  useEffect(() => { const timer = window.setTimeout(loadJobs, 350); return () => window.clearTimeout(timer); }, [loadJobs]);
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -132,7 +140,7 @@ export function JobsView() {
   const filteredJobs = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return [...(data?.jobs ?? [])].filter((job) => {
-      const searchable = `${job.title} ${job.company} ${job.location} ${job.department} ${job.employmentType}`.toLowerCase();
+      const searchable = `${job.title} ${job.company} ${job.location} ${job.department} ${job.employmentType} ${job.source}`.toLowerCase();
       return (!normalized || searchable.includes(normalized)) && (!selectedSources.length || selectedSources.includes(job.source)) && (workplaceFilter === "Any workplace" || job.workplace === workplaceFilter);
     }).sort((a, b) => sort === "Company A–Z" ? a.company.localeCompare(b.company) : (new Date(b.postedAt ?? 0).getTime() - new Date(a.postedAt ?? 0).getTime()));
   }, [data, query, selectedSources, sort, workplaceFilter]);
@@ -142,7 +150,7 @@ export function JobsView() {
   return <div className="-mx-4 -my-4 flex min-h-[calc(100vh-4rem)] flex-col bg-white md:-mx-6 lg:-mx-7 lg:h-[calc(100vh-4.25rem)] lg:overflow-hidden">
     <JobsToolbar query={query} setQuery={setQuery} searchRef={searchRef} sourceOptions={sourceOptions} selectedSources={selectedSources} setSelectedSources={setSelectedSources} workplaceFilter={workplaceFilter} setWorkplaceFilter={setWorkplaceFilter} sort={sort} setSort={setSort} greenhouseBoards={greenhouseBoards} setGreenhouseBoards={setGreenhouseBoards} leverBoards={leverBoards} setLeverBoards={setLeverBoards} loading={loading} loadJobs={loadJobs} resultCount={filteredJobs.length} totalCount={data?.jobs.length ?? 0} />
     <div className="hidden">
-    <section className="shrink-0 border-b border-[#e5e7eb] bg-white px-4 py-3 md:px-6 lg:px-7">
+    <section className="shrink-0 mt-4 border-b border-[#e5e7eb] bg-white px-4 py-3 md:px-6 lg:px-7">
       <div className="flex max-w-4xl items-center gap-2 rounded-full border border-[#b8bcc4] bg-white px-3 py-1 shadow-[0_1px_2px_rgba(0,0,0,.06)] sm:gap-3"><Search className="size-5 shrink-0 text-[#4f5358]" /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search jobs" placeholder="Search jobs by title, company, or location" className="h-10 min-w-0 flex-1 bg-transparent px-1 text-sm text-ink outline-none placeholder:text-[#6f7378]" />{query ? <button aria-label="Clear search" onClick={() => setQuery("")} className="rounded-full p-1.5 text-[#5f6368] hover:bg-[#f1f3f4]"><X className="size-4" /></button> : null}<button type="button" aria-label="Refresh job listings" title="Refresh job listings" onClick={loadJobs} disabled={loading} className="rounded-full p-1.5 text-[#5f6368] transition hover:bg-[#f1f3f4] disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /></button><kbd className="hidden rounded-md bg-[#f1f3f4] px-2 py-1 text-[10px] text-[#5f6368] sm:block">⌘ K</kbd></div>
     </section>
 
@@ -153,7 +161,7 @@ export function JobsView() {
     </div>
     {error ? <div className="mx-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 md:mx-6 lg:mx-7">{error}. Try refreshing the feed.</div> : null}
     <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 md:px-6 lg:overflow-hidden lg:px-7">
-    {loading ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Loading job listings">{[1, 2, 3, 4, 5, 6].map((item) => <JobCardSkeleton key={item} />)}</div> : filteredJobs.length ? <>
+    {loading ? <JobsLoadingSkeleton /> : filteredJobs.length ? <>
       {selectedJobId && selectedJob ? <div className="fixed inset-0 z-40 flex items-end bg-ink/35 lg:hidden" role="dialog" aria-modal="true" aria-label={`${selectedJob.title} details`} onClick={() => setSelectedJobId(null)}><div className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-3xl bg-canvas p-3 pt-12 shadow-[0_-18px_50px_rgba(55,52,44,.18)] sm:mx-4 sm:mb-4 sm:rounded-3xl sm:p-4 sm:pt-12" onClick={(event) => event.stopPropagation()}><button type="button" aria-label="Close job details" onClick={() => setSelectedJobId(null)} className="absolute right-4 top-3 rounded-full border border-border bg-white p-2 text-muted transition hover:bg-elevated"><X className="size-4" /></button><JobDetail job={selectedJob} /></div></div> : null}
       <div className="grid min-h-0 gap-5 lg:h-full lg:grid-cols-[minmax(300px,390px)_minmax(0,1fr)] lg:items-start">
         <div className="min-w-0 space-y-3 lg:h-full lg:overflow-y-auto lg:pr-2"><div className="sticky top-0 z-10 flex items-center justify-between bg-white/95 px-1 py-2 backdrop-blur"><h2 className="text-sm font-semibold text-ink">Results</h2><span className="text-xs text-muted">{filteredJobs.length.toLocaleString()} jobs</span></div>{filteredJobs.map((job) => <JobListItem key={job.id} job={job} selected={job.id === selectedJob?.id} onSelect={() => setSelectedJobId(job.id)} />)}</div>
