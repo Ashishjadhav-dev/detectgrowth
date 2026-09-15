@@ -15,6 +15,12 @@ function displayName(slug: string) {
   return slug.split(/[-_]+/).map((word) => word ? word[0].toUpperCase() + word.slice(1) : "").join(" ");
 }
 
+function textValue(value: unknown, fallback = "") {
+  if (typeof value === "string") return value.trim();
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+}
+
 function feedsFor(request: Request) {
   const params = new URL(request.url).searchParams;
   const greenhouse = boardSlugs(params.get("greenhouse"), DEFAULT_GREENHOUSE_BOARDS);
@@ -62,39 +68,39 @@ function dateValue(value: unknown) {
 
 function arbeitnowJobs(payload: { data?: Array<Record<string, unknown>> }): JobListing[] {
   return (payload.data ?? []).map((job, index) => {
-    const location = String(job.location ?? "");
+    const location = textValue(job.location);
     return {
       id: `arbeitnow-${String(job.slug ?? job.id ?? index)}`,
-      title: String(job.title ?? "Untitled role"),
-      company: String(job.company_name ?? "Unknown company"),
+      title: textValue(job.title, "Untitled role"),
+      company: textValue(job.company_name, "Unknown company"),
       location,
       workplace: workplace(location, Boolean(job.remote)),
       source: "Arbeitnow",
       tags: Array.isArray(job.tags) ? job.tags.map(String).filter((tag) => tag.toLowerCase() !== "remote") : [],
       description: stripHtml(job.description),
-      url: String(job.url ?? "https://www.arbeitnow.com/"),
+      url: textValue(job.url, "https://www.arbeitnow.com/"),
       postedAt: dateValue(job.created_at),
       department: String(job.category ?? ""),
-      employmentType: Array.isArray(job.job_types) ? String(job.job_types[0] ?? "") : "",
-      logoUrl: typeof job.company_logo === "string" ? job.company_logo : undefined,
+      employmentType: Array.isArray(job.job_types) ? textValue(job.job_types[0]) : "",
+      logoUrl: textValue(job.company_logo) || undefined,
     };
   });
 }
 
 function greenhouseJobs(payload: { jobs?: Array<Record<string, unknown>> }, source: string, company: string): JobListing[] {
   return (payload.jobs ?? []).map((job) => {
-    const location = typeof job.location === "object" && job.location ? String((job.location as Record<string, unknown>).name ?? "") : "";
+    const location = typeof job.location === "object" && job.location ? textValue((job.location as Record<string, unknown>).name) : "";
     const departments = Array.isArray(job.departments) ? job.departments as Array<Record<string, unknown>> : [];
     return {
       id: `${source.toLowerCase().replace(/[^a-z]+/g, "-")}-${String(job.id)}`,
-      title: String(job.title ?? "Untitled role"),
+      title: textValue(job.title, "Untitled role"),
       company,
       location,
       workplace: workplace(location),
       source,
       tags: departments.map((department) => String(department.name ?? "")).filter(Boolean),
       description: stripHtml(job.content),
-      url: String(job.absolute_url ?? "https://careers.airbnb.com/"),
+      url: textValue(job.absolute_url, "https://boards.greenhouse.io/"),
       postedAt: dateValue(job.updated_at),
       department: String(departments[0]?.name ?? ""),
       employmentType: "",
@@ -105,17 +111,17 @@ function greenhouseJobs(payload: { jobs?: Array<Record<string, unknown>> }, sour
 function leverJobs(payload: Array<Record<string, unknown>>, source: string, company: string): JobListing[] {
   return payload.map((job) => {
     const categories = typeof job.categories === "object" && job.categories ? job.categories as Record<string, unknown> : {};
-    const location = String(categories.location ?? "");
+    const location = textValue(categories.location);
     return {
       id: `${source.toLowerCase().replace(/[^a-z]+/g, "-")}-${String(job.id)}`,
-      title: String(job.text ?? "Untitled role"),
+      title: textValue(job.text, "Untitled role"),
       company,
       location,
       workplace: workplace(location),
       source,
       tags: [String(categories.team ?? ""), String(categories.department ?? "")].filter(Boolean),
       description: stripHtml(job.descriptionPlain ?? job.description),
-      url: String(job.hostedUrl ?? job.applyUrl ?? "https://jobs.netflix.com/"),
+      url: textValue(job.hostedUrl ?? job.applyUrl, "https://jobs.lever.co/"),
       postedAt: dateValue(job.createdAt),
       department: String(categories.team ?? ""),
       employmentType: String(categories.commitment ?? ""),
