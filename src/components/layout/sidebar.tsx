@@ -71,7 +71,7 @@ export function Sidebar({
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-[264px] shrink-0 flex-col border-r border-border bg-white px-3 py-4 text-ink lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-[264px] shrink-0 flex-col overflow-hidden border-r border-border bg-white px-3 py-4 text-ink lg:flex">
         <Link href="/dashboard" className="mb-5 flex items-center gap-3 rounded-2xl px-3 py-2">
           <span className="grid size-10 place-items-center rounded-2xl bg-primary text-sm font-semibold text-white shadow-[0_8px_20px_rgba(95,111,82,.20)]">
             DG
@@ -82,7 +82,7 @@ export function Sidebar({
           </span>
         </Link>
 
-        <nav className="space-y-5 overflow-y-auto pr-1">
+        <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
           {navGroups.map(({ label, items }) => (
             <div key={label}>
               <div className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-subtle">{label}</div>
@@ -99,7 +99,7 @@ export function Sidebar({
                       )}
                     >
                       <Icon className="size-4 shrink-0" />
-                      <span>{name}</span>
+                      <span className="min-w-0 truncate">{name}</span>
                       {name === "Signals" ? (
                         <span className="ml-auto rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                           24
@@ -113,7 +113,7 @@ export function Sidebar({
           ))}
         </nav>
 
-        <div className="mt-auto space-y-3 pt-4">
+        <div className="mt-auto shrink-0 space-y-3 pt-4">
           <div className="rounded-2xl border border-border bg-elevated p-3">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -138,7 +138,7 @@ export function Sidebar({
       {mobileVisible ? (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button aria-label="Close navigation overlay" className="absolute inset-0 bg-slate-950/45" onClick={onClose} />
-          <aside className="absolute left-0 top-0 flex h-full w-[84vw] max-w-[320px] flex-col bg-white px-3 py-4 text-ink shadow-[0_24px_80px_rgba(55,52,44,.18)]">
+          <aside className="absolute left-0 top-0 flex h-full w-[84vw] max-w-[320px] flex-col overflow-hidden bg-white px-3 py-4 text-ink shadow-[0_24px_80px_rgba(55,52,44,.18)]">
             <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl px-3 py-2">
               <Link href="/dashboard" className="flex items-center gap-3">
                 <span className="grid size-10 place-items-center rounded-2xl bg-primary text-sm font-semibold text-white shadow-[0_8px_20px_rgba(95,111,82,.20)]">
@@ -154,7 +154,7 @@ export function Sidebar({
               </button>
             </div>
 
-            <nav className="space-y-5 overflow-y-auto pr-1">
+            <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
               {navGroups.map(({ label, items }) => (
                 <div key={label}>
                   <div className="px-3 pb-2 text-[10px] font-semibold tracking-[0.16em] text-subtle">{label}</div>
@@ -172,7 +172,7 @@ export function Sidebar({
                           )}
                         >
                           <Icon className="size-4 shrink-0" />
-                          <span>{name}</span>
+                          <span className="min-w-0 truncate">{name}</span>
                           {name === "Signals" ? (
                             <span className="ml-auto rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                               24
@@ -186,7 +186,7 @@ export function Sidebar({
               ))}
             </nav>
 
-            <div className="mt-auto space-y-3 pt-4">
+            <div className="mt-auto shrink-0 space-y-3 pt-4">
           <div className="rounded-2xl border border-border bg-elevated p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>

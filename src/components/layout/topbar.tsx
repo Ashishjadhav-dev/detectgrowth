@@ -1,8 +1,11 @@
 import { Bell, CircleHelp, LayoutGrid, Menu, Sparkles } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { SearchInput } from "@/components/ui/search-input";
 import { Button } from "@/components/ui/button";
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
+  const pathname = usePathname();
+  const pageTitle = pathname.startsWith("/jobs") ? "Jobs" : pathname.startsWith("/discover") ? "Discover" : pathname.startsWith("/signals") ? "Signals" : pathname.startsWith("/opportunities") ? "Opportunities" : pathname.startsWith("/people") ? "People" : pathname.startsWith("/lists") ? "Lists" : pathname.startsWith("/research") ? "Research" : pathname.startsWith("/settings") ? "Settings" : pathname.startsWith("/integrations") ? "Integrations" : pathname.startsWith("/icp") ? "ICP Builder" : "Home Dashboard";
   return (
     <header className="sticky top-0 z-20 border-b border-border/80 bg-white/88 backdrop-blur">
       <div className="flex min-h-16 flex-wrap items-center gap-1.5 px-3 py-2 sm:gap-3 sm:px-4 md:px-6">
@@ -12,8 +15,8 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="min-w-0 flex-1 sm:flex-none sm:max-w-[280px]">
-            <div className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Home Dashboard</div>
-            <div className="mt-0.5 hidden truncate text-sm text-muted sm:block">Overview of live signals, tasks, and pipeline activity</div>
+            <div className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">{pageTitle}</div>
+            <div className="mt-0.5 hidden truncate text-sm text-muted sm:block">Overview of live signals and pipeline activity</div>
           </div>
           <div className="hidden max-w-[720px] flex-1 md:block">
             <SearchInput placeholder="Search companies, people, signals..." />
