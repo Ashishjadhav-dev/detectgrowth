@@ -35,7 +35,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             <CircleHelp className="size-4" />
           </Button>
           <div className="ml-1 flex items-center gap-2 rounded-full border border-border bg-white px-1.5 py-1 pr-2 shadow-[0_1px_1px_rgba(23,27,43,.02)] sm:px-2 sm:pr-3">
-            <div className="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6f57ff] to-[#4f2bce] text-xs font-semibold text-white">
+            <div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
               AJ
             </div>
             <div className="hidden text-left sm:block">
@@ -45,7 +45,6 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           </div>
         </div>
 
-        <div className="basis-full truncate border-t border-border/60 pt-1 text-[11px] text-muted sm:hidden">Overview of live signals, tasks, and pipeline activity</div>
       </div>
     </header>
   );

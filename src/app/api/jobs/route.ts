@@ -58,6 +58,21 @@ function stripHtml(value: unknown) {
     .trim();
 }
 
+function descriptionExcerpt(description: string, company: string) {
+  const sentences = description.split(/(?<=[.!?])\s+/).map((sentence) => sentence.trim()).filter(Boolean);
+  const companyName = company.toLowerCase();
+  const useful = sentences.filter((sentence, index) => {
+    const value = sentence.toLowerCase();
+    const boilerplate = index < 3 && (
+      value.startsWith("about us") || value.startsWith("who we are") || value.startsWith("we are ") ||
+      value.startsWith("we're ") || value.startsWith("at ") || value.startsWith("founded ") ||
+      value.startsWith("wir sind ") || value.startsWith("über uns") || value.includes(`${companyName} is`)
+    );
+    return !boilerplate;
+  });
+  return (useful.length ? useful : sentences).slice(0, 2).join(" ").slice(0, 360).trim();
+}
+
 function workplace(location: string, remote?: boolean) {
   const value = location.toLowerCase();
   if (remote || value.includes("remote") || value.includes("work from home")) return "Remote" as const;
@@ -86,7 +101,7 @@ function arbeitnowJobs(payload: { data?: Array<Record<string, unknown>> }): JobL
       workplace: workplace(location, Boolean(job.remote)),
       source: "Arbeitnow",
       tags: Array.isArray(job.tags) ? job.tags.map(String).filter((tag) => tag.toLowerCase() !== "remote") : [],
-      description: stripHtml(job.description),
+      description: descriptionExcerpt(stripHtml(job.description), textValue(job.company_name, "Unknown company")),
       url: textValue(job.url, "https://www.arbeitnow.com/"),
       postedAt: dateValue(job.created_at),
       department: String(job.category ?? ""),
@@ -108,7 +123,7 @@ function greenhouseJobs(payload: { jobs?: Array<Record<string, unknown>> }, sour
       workplace: workplace(location),
       source,
       tags: departments.map((department) => String(department.name ?? "")).filter(Boolean),
-      description: stripHtml(job.content),
+      description: descriptionExcerpt(stripHtml(job.content), company),
       url: textValue(job.absolute_url, "https://boards.greenhouse.io/"),
       postedAt: dateValue(job.updated_at),
       department: String(departments[0]?.name ?? ""),
@@ -129,7 +144,7 @@ function leverJobs(payload: Array<Record<string, unknown>>, source: string, comp
       workplace: workplace(location),
       source,
       tags: [String(categories.team ?? ""), String(categories.department ?? "")].filter(Boolean),
-      description: stripHtml(job.descriptionPlain ?? job.description),
+      description: descriptionExcerpt(stripHtml(job.descriptionPlain ?? job.description), company),
       url: textValue(job.hostedUrl ?? job.applyUrl, "https://jobs.lever.co/"),
       postedAt: dateValue(job.createdAt),
       department: String(categories.team ?? ""),
