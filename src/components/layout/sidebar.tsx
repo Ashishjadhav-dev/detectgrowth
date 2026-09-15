@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Bell,
+  BriefcaseBusiness,
   Building2,
   CircleUserRound,
   Compass,
@@ -28,6 +29,7 @@ const navGroups = [
       ["Home", "/dashboard", Gauge],
       ["Discover", "/discover", Compass],
       ["Signals", "/signals", Zap],
+      ["Jobs", "/jobs", BriefcaseBusiness],
       ["Opportunities", "/opportunities/abc-fashion", Radar],
     ],
   },
