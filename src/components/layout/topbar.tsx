@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   return (
     <header className="sticky top-0 z-20 border-b border-border/80 bg-white/88 backdrop-blur">
-      <div className="flex min-h-16 items-center gap-1.5 px-3 py-2 sm:gap-3 sm:px-4 md:px-6">
+      <div className="flex min-h-16 flex-wrap items-center gap-1.5 px-3 py-2 sm:gap-3 sm:px-4 md:px-6">
         <Button variant="ghost" className="shrink-0 lg:hidden" aria-label="Open navigation" onClick={onMenuClick}>
           <Menu className="size-5" />
         </Button>
@@ -44,6 +44,8 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             </div>
           </div>
         </div>
+
+        <div className="basis-full truncate border-t border-border/60 pt-1 text-[11px] text-muted sm:hidden">Overview of live signals, tasks, and pipeline activity</div>
       </div>
     </header>
   );
