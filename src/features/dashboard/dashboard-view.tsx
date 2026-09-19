@@ -39,7 +39,7 @@ function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; v
         <div className="min-w-0">
           <div className="truncate text-xs font-medium text-muted">{label}</div>
           <div className="mt-2 truncate text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{value}</div>
-          <div className="mt-1 flex items-center gap-1 text-xs font-medium text-success"><TrendingUp className="size-3" />{delta}</div>
+          <div className="mt-1 flex items-center gap-1 text-xs font-medium text-success">{delta}</div>
         </div>
         <div className={`grid size-9 shrink-0 place-items-center rounded-xl ${tones[tone]}`}>{icon}</div>
       </div>
@@ -101,20 +101,20 @@ export function DashboardView() {
 
 
       <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Kpi label="New opportunities" value={summary.newOpportunities} delta={`${summary.growthDelta} vs last period`} icon={<Target className="size-4" />} />
-        <Kpi label="Companies surging" value={summary.companiesSurging} delta="8% above average" icon={<TrendingUp className="size-4" />} tone="green" />
-        <Kpi label="New signals" value={summary.newSignals} delta="12 high priority" icon={<Zap className="size-4" />} tone="amber" />
-        <Kpi label="People discovered" value={summary.peopleDiscovered} delta="23 new this week" icon={<Users className="size-4" />} tone="blue" />
-        <Kpi label="Pipeline value" value={summary.pipelineValue} delta="18% this month" icon={<CircleDollarSign className="size-4" />} tone="green" />
+        <Kpi label="New opportunities" value={summary.newOpportunities} delta="Accounts in your pipeline" icon={<Target className="size-4" />} />
+        <Kpi label="Companies surging" value={summary.companiesSurging} delta="Companies in your workspace" icon={<TrendingUp className="size-4" />} tone="green" />
+        <Kpi label="New signals" value={summary.newSignals} delta={`${dashboard.signals.filter((signal) => signal.impact === "High").length} high priority`} icon={<Zap className="size-4" />} tone="amber" />
+        <Kpi label="People discovered" value={summary.peopleDiscovered} delta="Contacts in your workspace" icon={<Users className="size-4" />} tone="blue" />
+        <Kpi label="Pipeline value" value={summary.pipelineValue} delta="Total expected opportunity value" icon={<CircleDollarSign className="size-4" />} tone="green" />
       </section>
 
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,.85fr)]">
         <Card className="glass-card min-w-0 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_42px_rgba(91,53,230,.08)]">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div><h2 className="section-title">Growth score trend</h2><p className="mt-1 text-sm text-muted">Average score across tracked companies · {selectedRange.toLowerCase()}</p></div>
-            <div className="text-right"><div className="text-2xl font-semibold text-ink">{summary.averageGrowthScore}</div><div className="text-xs font-medium text-success">{summary.growthDelta} vs prior period</div></div>
+            <div className="text-right"><div className="text-2xl font-semibold text-ink">{summary.averageGrowthScore}</div><div className="text-xs font-medium text-success">Current portfolio average</div></div>
           </div>
-          <GrowthChart key={dateRange} days={Number(dateRange)} />
+          <GrowthChart key={dateRange} days={Number(dateRange)} endScore={Number(summary.averageGrowthScore)} />
           <div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Top signal</div><div className="mt-1 truncate text-sm font-semibold text-ink">{dashboard.signals[0]?.type ?? "—"}</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Confidence</div><div className="mt-1 text-sm font-semibold text-ink">{dashboard.signals[0]?.confidence ?? 0}%</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Active accounts</div><div className="mt-1 text-sm font-semibold text-ink">{summary.companiesSurging}</div></div></div>
         </Card>
 
@@ -140,7 +140,7 @@ export function DashboardView() {
       </section>
 
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
-        <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Pipeline health</h2><p className="mt-1 text-sm text-muted">Current opportunities by stage</p></div><Link href="/opportunities" aria-label="Open pipeline"><ChevronRight className="size-5 text-primary" /></Link></div><div className="space-y-4">{dashboard.pipeline.map((stage, index) => { const count = Number.parseInt(stage.count, 10) || 0; const max = Math.max(...dashboard.pipeline.map((item) => Number.parseInt(item.count, 10) || 0), 1); return <div key={stage.title}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="font-medium text-ink">{stage.title}</span><span className="text-muted">{stage.count} · {stage.value}</span></div><div className="h-2 overflow-hidden rounded-full bg-elevated"><div className={`h-full rounded-full ${["bg-primary", "bg-info", "bg-success", "bg-warning"][index % 4]}`} style={{ width: `${Math.max(10, (count / max) * 100)}%` }} /></div></div>; })}</div></Card>
+        <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Pipeline health</h2><p className="mt-1 text-sm text-muted">Current opportunities by stage</p></div><Link href="/opportunities" aria-label="Open pipeline"><ChevronRight className="size-5 text-primary" /></Link></div><div className="space-y-4">{dashboard.pipeline.map((stage, index) => { const count = Number.parseInt(stage.count, 10) || 0; const max = Math.max(...dashboard.pipeline.map((item) => Number.parseInt(item.count, 10) || 0), 1); return <div key={stage.title}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="font-medium text-ink">{stage.title}</span><span className="text-muted">{stage.count} · {stage.value}</span></div><div className="h-2 overflow-hidden rounded-full bg-elevated"><div className={`h-full rounded-full ${["bg-primary", "bg-info", "bg-success", "bg-warning"][index % 4]}`} style={{ width: `${(count / max) * 100}%` }} /></div></div>; })}</div></Card>
         <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Recent activity</h2><p className="mt-1 text-sm text-muted">Latest updates from your workspace</p></div><Bell className="size-5 text-subtle" /></div><div className="grid gap-2.5 sm:grid-cols-2">{dashboard.activity.slice(0, 4).map((item, index) => <div key={item.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-white p-3"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-elevated text-muted">{index === 0 ? <Zap className="size-4" /> : index === 1 ? <CheckCircle2 className="size-4" /> : <Users className="size-4" />}</div><div className="min-w-0"><div className="text-sm leading-5 text-ink">{item.text}</div><div className="mt-1 text-xs text-muted">{item.age}</div></div></div>)}</div></Card>
       </section>
     </div>

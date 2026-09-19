@@ -1,14 +1,15 @@
 "use client";
 import { useId, useMemo, useState } from "react";
 
-export function GrowthChart({ days }: { days: number }) {
+export function GrowthChart({ days, endScore = 87 }: { days: number; endScore?: number }) {
   const gradient = useId();
   const [active, setActive] = useState<number | null>(null);
   const points = useMemo(() => Array.from({ length: days }, (_, index) => {
     const date = new Date(); date.setDate(date.getDate() - days + 1 + index);
-    const score = Math.round(68 + (index / (days - 1)) * 19 + Math.sin(index * 0.9) * 1.5);
+    const progress = index / (days - 1);
+    const score = Math.max(0, Math.min(100, Math.round(endScore - 19 + progress * 19 + (Math.sin(index * 0.9) - Math.sin((days - 1) * 0.9) * progress) * 1.5)));
     return { date: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }), score, signals: 3 + index % 9, x: 12 + index / (days - 1) * 616, y: (100 - score) * 1.8 };
-  }), [days]);
+  }), [days, endScore]);
   const line = points.map((point, index) => `${index ? "L" : "M"}${point.x},${point.y}`).join(" ");
   const selected = active === null ? null : points[active];
   const change = active !== null && active > 0 ? points[active].score - points[active - 1].score : 0;
