@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ export default function Page() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -61,7 +63,7 @@ export default function Page() {
         <form className="mt-7 space-y-4" onSubmit={submit}>
           {!isSignIn ? <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Name</span><Input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label> : null}
           <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Email</span><Input required autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label>
-          <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Password</span><Input required minLength={8} autoComplete={isSignIn ? "current-password" : "new-password"} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Your password" /></label>
+          <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Password</span><div className="relative"><Input required minLength={8} autoComplete={isSignIn ? "current-password" : "new-password"} type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Your password" className="pr-11" /><button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-muted transition hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></div></label>
           {error ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
           <Button className="w-full" disabled={loading}>{loading ? "Signing in…" : isSignIn ? "Sign in" : "Create account"}</Button>
         </form>
