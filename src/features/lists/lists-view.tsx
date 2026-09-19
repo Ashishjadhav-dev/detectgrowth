@@ -8,6 +8,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { SectionHeader } from "@/components/ui/patterns";
 import { createList, listLists, type ApiList } from "@/lib/api/lists";
 import { demoLists } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 const folders = ["All Lists", "Smart Lists", "Watchlists", "Saved Searches"] as const;
 export function ListsView() {
@@ -15,6 +16,7 @@ export function ListsView() {
   const [activeFolder, setActiveFolder] = useState<(typeof folders)[number]>("All Lists");
   const [apiLists, setApiLists] = useState<ApiList[] | null>(null);
   useEffect(() => { listLists(query).then(setApiLists).catch(() => { setApiLists(demoLists); }); }, [query]);
+  if (!apiLists) return <PageSkeleton variant="results" />;
   const normalized = query.trim().toLowerCase();
 
   const sourceRows = apiLists ?? [];

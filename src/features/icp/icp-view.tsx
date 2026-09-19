@@ -7,6 +7,7 @@ import { SectionHeader } from "@/components/ui/patterns";
 import { getICP, updateICP } from "@/lib/api/icp";
 import { listCompanies, type ApiCompany } from "@/lib/api/companies";
 import { demoCompanies } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 const Field = ({ label, children }: { label: string; children: ReactNode }) => (
   <label className="block">
@@ -29,12 +30,13 @@ export function IcpView() {
     tech: false,
   });
   const [companies, setCompanies] = useState<ApiCompany[]>([]); const [message, setMessage] = useState("");
-  useEffect(() => { getICP().then((settings) => { setIndustries(settings.industries || ""); setLocations(settings.locations || ""); setEmployeeSize(settings.employeeSize || ""); setRevenue(settings.revenue || ""); setSignals((current) => ({ ...current, ...(settings.signals || {}) })); }).catch(() => { setIndustries("E-commerce, SaaS"); setLocations("Bangalore, Mumbai"); setEmployeeSize("20-1,000 employees"); setRevenue("$1M-$50M"); }); listCompanies().then(setCompanies).catch(() => setCompanies(demoCompanies)); }, []);
-
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { Promise.all([getICP().then((settings) => { setIndustries(settings.industries || ""); setLocations(settings.locations || ""); setEmployeeSize(settings.employeeSize || ""); setRevenue(settings.revenue || ""); setSignals((current) => ({ ...current, ...(settings.signals || {}) })); }).catch(() => { setIndustries("E-commerce, SaaS"); setLocations("Bangalore, Mumbai"); setEmployeeSize("20-1,000 employees"); setRevenue("$1M-$50M"); }), listCompanies().then(setCompanies).catch(() => setCompanies(demoCompanies))]).finally(() => setLoading(false)); }, []);
   const selectedSignalCount = Object.values(signals).filter(Boolean).length;
   const fitScore = useMemo(() => {
     return Math.min(99, selectedSignalCount * 10 + (industries ? 20 : 0) + (locations ? 20 : 0) + (employeeSize ? 15 : 0) + (revenue ? 15 : 0));
   }, [industries, locations, employeeSize, revenue, selectedSignalCount]);
+  if (loading) return <PageSkeleton variant="workspace" />;
   const matchingCompanies = companies.filter((company) => (!industries || industries.toLowerCase().split(",").some((item) => company.industry.toLowerCase().includes(item.trim()))) && (!locations || locations.toLowerCase().split(",").some((item) => company.location.toLowerCase().includes(item.trim()))));
   const save = () => { setMessage("Saving…"); updateICP({ industries, locations, employeeSize, revenue, signals }).then(() => setMessage("ICP saved.")).catch((error: Error) => setMessage(error.message)); };
 

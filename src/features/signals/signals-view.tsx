@@ -8,6 +8,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { SectionHeader } from "@/components/ui/patterns";
 import { listSignals, type ApiSignal } from "@/lib/api/signals";
 import { demoSignals } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 const filters = ["All", "High", "Medium", "Low"] as const;
 
@@ -15,9 +16,12 @@ export function SignalsView() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
   const [apiSignals, setApiSignals] = useState<ApiSignal[] | null>(null);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    listSignals(query).then(setApiSignals).catch(() => { setApiSignals(demoSignals); });
+    setLoading(true);
+    listSignals(query).then((data) => { setApiSignals(data); setLoading(false); }).catch(() => { setApiSignals(demoSignals); setLoading(false); });
   }, [query]);
+  if (loading && !apiSignals) return <PageSkeleton variant="results" />;
   const normalized = query.trim().toLowerCase();
 
   const filtered = (apiSignals ?? []).filter((signal) => {

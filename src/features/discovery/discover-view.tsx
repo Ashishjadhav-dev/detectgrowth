@@ -25,6 +25,7 @@ import { listCompanies, type ApiCompany } from "@/lib/api/companies";
 import { listPeople, type ApiPerson } from "@/lib/api/people";
 import { listSignals, type ApiSignal } from "@/lib/api/signals";
 import { demoCompanies, demoPeople, demoSignals } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 const tabs = ["Companies", "People", "Signals", "Saved Views"] as const;
 const quickFilters = [
@@ -44,6 +45,7 @@ export function DiscoverView() {
   const [apiCompanies, setApiCompanies] = useState<ApiCompany[] | null>(null);
   const [apiPeople, setApiPeople] = useState<ApiPerson[] | null>(null);
   const [apiSignals, setApiSignals] = useState<ApiSignal[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,15 +55,18 @@ export function DiscoverView() {
           setApiCompanies(companies);
           setApiPeople(people);
           setApiSignals(signals);
+          setLoading(false);
         }
       })
       .catch((error: Error) => {
-        if (!cancelled) { setApiCompanies(demoCompanies); setApiPeople(demoPeople); setApiSignals(demoSignals); }
+        if (!cancelled) { setApiCompanies(demoCompanies); setApiPeople(demoPeople); setApiSignals(demoSignals); setLoading(false); }
       });
     return () => {
       cancelled = true;
     };
   }, [query]);
+
+  if (loading && !apiCompanies) return <PageSkeleton variant="results" />;
 
   const normalized = query.trim().toLowerCase();
 

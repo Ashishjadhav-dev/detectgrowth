@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { SectionHeader } from "@/components/ui/patterns";
 import { getCompany, type ApiCompany } from "@/lib/api/companies";
 import { demoCompanies } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 const tabs = ["Overview", "Growth", "Signals", "People", "Tech", "Funding", "Notes"] as const;
 
@@ -19,6 +20,8 @@ export function CompanyDetail({ id }: { id: string }) {
   useEffect(() => { getCompany(id).then(setCompany).catch(() => { setCompany(demoCompanies.find((item) => item.id === id) ?? demoCompanies[0]); }); }, [id]);
   const liveSignals = company?.signals ?? [];
   const averageConfidence = liveSignals.length ? Math.round(liveSignals.reduce((sum, signal) => sum + (signal.confidence ?? 0), 0) / liveSignals.length) : 0;
+
+  if (!company) return <PageSkeleton variant="detail" />;
 
   return (
     <div className="space-y-5">

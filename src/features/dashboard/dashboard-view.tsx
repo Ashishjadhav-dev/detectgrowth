@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Score } from "@/components/ui/score";
 import { getDashboardData, updateDashboardTask, type DashboardData } from "@/lib/api/dashboard";
 import { demoDashboard } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 function TrendChart() {
   return (
@@ -68,7 +69,7 @@ function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; v
 }
 
 export function DashboardView() {
-  const [dashboard, setDashboard] = useState<DashboardData>(demoDashboard);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<string[]>(demoDashboard.tasks.filter((task) => task.completed).map((task) => task.id));
 
@@ -87,9 +88,10 @@ export function DashboardView() {
     return () => { cancelled = true; window.clearInterval(refreshTimer); };
   }, []);
 
+  const openTasks = useMemo(() => dashboard?.tasks.filter((task) => !completedTasks.includes(task.id)) ?? [], [completedTasks, dashboard]);
+  if (!dashboard) return <PageSkeleton variant="dashboard" />;
+
   const summary = dashboard.summary;
-  const completedCount = completedTasks.length;
-  const openTasks = useMemo(() => dashboard.tasks.filter((task) => !completedTasks.includes(task.id)), [completedTasks, dashboard.tasks]);
 
   const toggleTask = (id: string, checked: boolean) => {
     setCompletedTasks((current) => checked ? [...new Set([...current, id])] : current.filter((taskId) => taskId !== id));

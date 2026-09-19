@@ -7,6 +7,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { SectionHeader } from "@/components/ui/patterns";
 import { runResearch, type ResearchResult } from "@/lib/api/research";
 import { demoResearch } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 const prompts = ["Market Position", "SWOT Analysis", "Sales Approach", "Pain Points", "Growth Potential"];
 
@@ -16,6 +17,8 @@ export function ResearchView() {
   const [hasRun, setHasRun] = useState(false);
   const [result, setResult] = useState<ResearchResult | null>(null);
   const [loading, setLoading] = useState(false);
+
+  if (loading) return <PageSkeleton variant="research" />;
 
   return (
     <div className="space-y-5">

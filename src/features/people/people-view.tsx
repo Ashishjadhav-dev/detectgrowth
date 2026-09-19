@@ -9,6 +9,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { listPeople, type ApiPerson } from "@/lib/api/people";
 import { SectionHeader } from "@/components/ui/patterns";
 import { demoPeople } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 const tabs = ["All", "Marketing", "Sales", "Leadership", "Open to outreach"] as const;
 
@@ -16,10 +17,14 @@ export function PeopleView() {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("All");
   const [apiPeople, setApiPeople] = useState<ApiPerson[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    listPeople(query).then(setApiPeople).catch(() => { setApiPeople(demoPeople); });
+    setLoading(true);
+    listPeople(query).then((data) => { setApiPeople(data); setLoading(false); }).catch(() => { setApiPeople(demoPeople); setLoading(false); });
   }, [query]);
+
+  if (loading && !apiPeople) return <PageSkeleton variant="results" />;
 
   const normalized = query.trim().toLowerCase();
   const sourcePeople = apiPeople ?? [];

@@ -11,10 +11,12 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Score } from "@/components/ui/score";
 import { listOpportunities, type ApiOpportunity } from "@/lib/api/opportunities";
 import { demoOpportunities } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 export function OpportunitiesView() {
-  const [query, setQuery] = useState(""); const [opportunities, setOpportunities] = useState<ApiOpportunity[]>([]);
-  useEffect(() => { let cancelled = false; listOpportunities(query).then((data) => { if (!cancelled) setOpportunities(data); }).catch(() => { if (!cancelled) setOpportunities(demoOpportunities); }); return () => { cancelled = true; }; }, [query]);
+  const [query, setQuery] = useState(""); const [opportunities, setOpportunities] = useState<ApiOpportunity[]>([]); const [loading, setLoading] = useState(true);
+  useEffect(() => { let cancelled = false; setLoading(true); listOpportunities(query).then((data) => { if (!cancelled) { setOpportunities(data); setLoading(false); } }).catch(() => { if (!cancelled) { setOpportunities(demoOpportunities); setLoading(false); } }); return () => { cancelled = true; }; }, [query]);
+  if (loading && !opportunities.length) return <PageSkeleton variant="results" />;
   return <div className="space-y-5">
     <section className="flex flex-wrap items-end justify-between gap-4"><div><div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Pipeline</div><h1 className="page-title mt-2">Growth opportunities</h1><p className="mt-1 text-sm text-muted">Review live opportunities stored in your workspace and move them through the pipeline.</p></div><Button><Target className="size-4" />Create opportunity</Button></section>
     <Card className="glass-card p-4"><div className="flex flex-col gap-3 sm:flex-row"><div className="flex-1"><SearchInput value={query} onChange={setQuery} onClear={() => setQuery("")} placeholder="Search companies, industries, or stages…" /></div><Button variant="secondary"><Search className="size-4" />Search</Button></div></Card>
