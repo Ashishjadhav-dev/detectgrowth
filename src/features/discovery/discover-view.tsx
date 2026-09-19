@@ -24,6 +24,7 @@ import { SectionHeader } from "@/components/ui/patterns";
 import { listCompanies, type ApiCompany } from "@/lib/api/companies";
 import { listPeople, type ApiPerson } from "@/lib/api/people";
 import { listSignals, type ApiSignal } from "@/lib/api/signals";
+import { demoCompanies, demoPeople, demoSignals } from "@/data/demo";
 
 const tabs = ["Companies", "People", "Signals", "Saved Views"] as const;
 const quickFilters = [
@@ -57,7 +58,7 @@ export function DiscoverView() {
         }
       })
       .catch((error: Error) => {
-        if (!cancelled) setApiError(error.message);
+        if (!cancelled) { setApiCompanies(demoCompanies); setApiPeople(demoPeople); setApiSignals(demoSignals); setApiError("Showing demo data while the API is unavailable."); }
       });
     return () => {
       cancelled = true;

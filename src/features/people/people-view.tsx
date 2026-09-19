@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { listPeople, type ApiPerson } from "@/lib/api/people";
 import { SectionHeader } from "@/components/ui/patterns";
+import { demoPeople } from "@/data/demo";
 
 const tabs = ["All", "Marketing", "Sales", "Leadership", "Open to outreach"] as const;
 
@@ -18,7 +19,7 @@ export function PeopleView() {
   const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
-    listPeople(query).then(setApiPeople).catch((error: Error) => setApiError(error.message));
+    listPeople(query).then(setApiPeople).catch(() => { setApiPeople(demoPeople); setApiError("Showing demo data while the API is unavailable."); });
   }, [query]);
 
   const normalized = query.trim().toLowerCase();

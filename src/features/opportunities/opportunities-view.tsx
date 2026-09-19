@@ -10,10 +10,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { Score } from "@/components/ui/score";
 import { listOpportunities, type ApiOpportunity } from "@/lib/api/opportunities";
+import { demoOpportunities } from "@/data/demo";
 
 export function OpportunitiesView() {
   const [query, setQuery] = useState(""); const [opportunities, setOpportunities] = useState<ApiOpportunity[]>([]); const [error, setError] = useState<string | null>(null);
-  useEffect(() => { let cancelled = false; listOpportunities(query).then((data) => { if (!cancelled) { setOpportunities(data); setError(null); } }).catch((requestError: Error) => { if (!cancelled) setError(requestError.message); }); return () => { cancelled = true; }; }, [query]);
+  useEffect(() => { let cancelled = false; listOpportunities(query).then((data) => { if (!cancelled) { setOpportunities(data); setError(null); } }).catch(() => { if (!cancelled) { setOpportunities(demoOpportunities); setError("Showing demo data while the API is unavailable."); } }); return () => { cancelled = true; }; }, [query]);
   return <div className="space-y-5">
     <section className="flex flex-wrap items-end justify-between gap-4"><div><div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Pipeline</div><h1 className="page-title mt-2">Growth opportunities</h1><p className="mt-1 text-sm text-muted">Review live opportunities stored in your workspace and move them through the pipeline.</p></div><Button><Target className="size-4" />Create opportunity</Button></section>
     <Card className="glass-card p-4"><div className="flex flex-col gap-3 sm:flex-row"><div className="flex-1"><SearchInput value={query} onChange={setQuery} onClear={() => setQuery("")} placeholder="Search companies, industries, or stages…" /></div><Button variant="secondary"><Search className="size-4" />Search</Button></div>{error && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Opportunities API unavailable. Start the Go API and try again.</div>}</Card>

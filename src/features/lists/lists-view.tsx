@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { SectionHeader } from "@/components/ui/patterns";
 import { createList, listLists, type ApiList } from "@/lib/api/lists";
+import { demoLists } from "@/data/demo";
 
 const folders = ["All Lists", "Smart Lists", "Watchlists", "Saved Searches"] as const;
 export function ListsView() {
@@ -14,7 +15,7 @@ export function ListsView() {
   const [activeFolder, setActiveFolder] = useState<(typeof folders)[number]>("All Lists");
   const [apiLists, setApiLists] = useState<ApiList[] | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
-  useEffect(() => { listLists(query).then(setApiLists).catch((error: Error) => setApiError(error.message)); }, [query]);
+  useEffect(() => { listLists(query).then(setApiLists).catch(() => { setApiLists(demoLists); setApiError("Showing demo data while the API is unavailable."); }); }, [query]);
   const normalized = query.trim().toLowerCase();
 
   const sourceRows = apiLists ?? [];

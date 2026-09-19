@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { SearchInput } from "@/components/ui/search-input";
 import { SectionHeader } from "@/components/ui/patterns";
 import { runResearch, type ResearchResult } from "@/lib/api/research";
+import { demoResearch } from "@/data/demo";
 
 const prompts = ["Market Position", "SWOT Analysis", "Sales Approach", "Pain Points", "Growth Potential"];
 
@@ -38,7 +39,7 @@ export function ResearchView() {
           </div>
           <Button
             onClick={() => {
-              if (query.trim()) { setLoading(true); setError(null); runResearch(query).then((data) => { setResult(data); setHasRun(true); }).catch((requestError: Error) => setError(requestError.message)).finally(() => setLoading(false)); }
+              if (query.trim()) { setLoading(true); setError(null); runResearch(query).then((data) => { setResult(data); setHasRun(true); }).catch(() => { setResult(demoResearch(query)); setHasRun(true); setError("Showing demo research while the API is unavailable."); }).finally(() => setLoading(false)); }
             }}
           >
             <Wand2 className="size-4" />

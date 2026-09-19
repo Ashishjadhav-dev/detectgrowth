@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { SectionHeader } from "@/components/ui/patterns";
 import { getICP, updateICP } from "@/lib/api/icp";
 import { listCompanies, type ApiCompany } from "@/lib/api/companies";
+import { demoCompanies } from "@/data/demo";
 
 const Field = ({ label, children }: { label: string; children: ReactNode }) => (
   <label className="block">
@@ -28,7 +29,7 @@ export function IcpView() {
     tech: false,
   });
   const [companies, setCompanies] = useState<ApiCompany[]>([]); const [message, setMessage] = useState("");
-  useEffect(() => { getICP().then((settings) => { setIndustries(settings.industries || ""); setLocations(settings.locations || ""); setEmployeeSize(settings.employeeSize || ""); setRevenue(settings.revenue || ""); setSignals((current) => ({ ...current, ...(settings.signals || {}) })); }).catch(() => setMessage("Unable to load ICP settings.")); listCompanies().then(setCompanies).catch(() => undefined); }, []);
+  useEffect(() => { getICP().then((settings) => { setIndustries(settings.industries || ""); setLocations(settings.locations || ""); setEmployeeSize(settings.employeeSize || ""); setRevenue(settings.revenue || ""); setSignals((current) => ({ ...current, ...(settings.signals || {}) })); }).catch(() => { setIndustries("E-commerce, SaaS"); setLocations("Bangalore, Mumbai"); setEmployeeSize("20-1,000 employees"); setRevenue("$1M-$50M"); setMessage("Using demo ICP settings until the API is available."); }); listCompanies().then(setCompanies).catch(() => setCompanies(demoCompanies)); }, []);
 
   const selectedSignalCount = Object.values(signals).filter(Boolean).length;
   const fitScore = useMemo(() => {

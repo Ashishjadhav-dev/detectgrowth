@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   Bell,
@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { clearDemoSession } from "@/lib/auth";
 
 const navGroups = [
   {
@@ -67,7 +68,9 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const mobileVisible = mobileOpen;
+  const signOut = () => { clearDemoSession(); router.push("/auth"); };
 
   return (
     <>
@@ -131,6 +134,7 @@ export function Sidebar({
                 <div className="text-[11px] text-muted">Growth Team</div>
               </div>
             </div>
+            <button type="button" onClick={signOut} className="mt-3 w-full rounded-xl border border-border bg-white px-3 py-2 text-left text-xs font-medium text-muted hover:text-ink">Sign out</button>
           </div>
         </div>
       </aside>
@@ -204,6 +208,7 @@ export function Sidebar({
                 <div className="text-[11px] text-muted">Growth Team</div>
                   </div>
                 </div>
+                <button type="button" onClick={signOut} className="mt-3 w-full rounded-xl border border-border bg-white px-3 py-2 text-left text-xs font-medium text-muted hover:text-ink">Sign out</button>
               </div>
             </div>
           </aside>
