@@ -30,8 +30,8 @@ export default function Page() {
           <SectionHeader title="Workspace overview" description="A quick view of your workspace configuration." />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {[
-              ["Workspace", "Morgan Growth Team", "Active"],
-              ["Members", "18 users", "2 pending invites"],
+              ["Workspace", "Demo Workspace", "Active"],
+              ["Members", "1 user", "Demo account"],
               ["Billing", "Pro plan", "Next renewal Aug 30, 2026"],
               ["Security", "SSO enabled", "2FA required"],
               ["Usage", "72% of credits used", "3,240 credits remaining"],

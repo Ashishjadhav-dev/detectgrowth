@@ -120,7 +120,7 @@ export function Sidebar({
           <div className="rounded-2xl border border-border bg-elevated p-3">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="text-sm font-medium">Morgan Growth Team</div>
+                <div className="text-sm font-medium">Demo Workspace</div>
                 <div className="text-[11px] text-muted">Workspace active</div>
               </div>
               <Bell className="size-4 text-subtle" />
@@ -130,8 +130,8 @@ export function Sidebar({
                 <CircleUserRound className="size-5" />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">Ashish Jadhav</div>
-                <div className="text-[11px] text-muted">Growth Team</div>
+                <div className="truncate text-sm font-medium">Demo User</div>
+                <div className="text-[11px] text-muted">Demo account</div>
               </div>
             </div>
             <button type="button" onClick={signOut} className="mt-3 w-full rounded-xl border border-border bg-white px-3 py-2 text-left text-xs font-medium text-muted hover:text-ink">Sign out</button>
@@ -194,7 +194,7 @@ export function Sidebar({
           <div className="rounded-2xl border border-border bg-elevated p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <div className="text-sm font-medium">Morgan Growth Team</div>
+                    <div className="text-sm font-medium">Demo Workspace</div>
                 <div className="text-[11px] text-muted">Workspace active</div>
                   </div>
               <Bell className="size-4 text-subtle" />
@@ -204,8 +204,8 @@ export function Sidebar({
                     <CircleUserRound className="size-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">Ashish Jadhav</div>
-                <div className="text-[11px] text-muted">Growth Team</div>
+                    <div className="truncate text-sm font-medium">Demo User</div>
+                <div className="text-[11px] text-muted">Demo account</div>
                   </div>
                 </div>
                 <button type="button" onClick={signOut} className="mt-3 w-full rounded-xl border border-border bg-white px-3 py-2 text-left text-xs font-medium text-muted hover:text-ink">Sign out</button>
