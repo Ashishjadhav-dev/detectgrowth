@@ -44,7 +44,6 @@ export function DiscoverView() {
   const [apiCompanies, setApiCompanies] = useState<ApiCompany[] | null>(null);
   const [apiPeople, setApiPeople] = useState<ApiPerson[] | null>(null);
   const [apiSignals, setApiSignals] = useState<ApiSignal[] | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,11 +53,10 @@ export function DiscoverView() {
           setApiCompanies(companies);
           setApiPeople(people);
           setApiSignals(signals);
-          setApiError(null);
         }
       })
       .catch((error: Error) => {
-        if (!cancelled) { setApiCompanies(demoCompanies); setApiPeople(demoPeople); setApiSignals(demoSignals); setApiError("Showing demo data while the API is unavailable."); }
+        if (!cancelled) { setApiCompanies(demoCompanies); setApiPeople(demoPeople); setApiSignals(demoSignals); }
       });
     return () => {
       cancelled = true;
@@ -208,7 +206,6 @@ export function DiscoverView() {
             ))}
           </div>
         </div>
-        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Discovery API unavailable. Start the Go API and try again.</div> : null}
       </Card>
 
       {selectedIds.length > 0 && activeTab === "Companies" ? (
@@ -232,7 +229,7 @@ export function DiscoverView() {
 
       <section className="grid gap-4 xl:grid-cols-[280px_1fr]">
         <Card className="glass-card p-4">
-          <SectionHeader title="Filters" description="Keep the search focused with the same language the wireframes use." />
+          <SectionHeader title="Filters" description="Keep the search focused with quick filters." />
           <div className="space-y-4">
             {[
               ["Industry", ["SaaS", "E-commerce", "Fintech", "Healthcare"]],

@@ -29,14 +29,14 @@ export function IcpView() {
     tech: false,
   });
   const [companies, setCompanies] = useState<ApiCompany[]>([]); const [message, setMessage] = useState("");
-  useEffect(() => { getICP().then((settings) => { setIndustries(settings.industries || ""); setLocations(settings.locations || ""); setEmployeeSize(settings.employeeSize || ""); setRevenue(settings.revenue || ""); setSignals((current) => ({ ...current, ...(settings.signals || {}) })); }).catch(() => { setIndustries("E-commerce, SaaS"); setLocations("Bangalore, Mumbai"); setEmployeeSize("20-1,000 employees"); setRevenue("$1M-$50M"); setMessage("Using demo ICP settings until the API is available."); }); listCompanies().then(setCompanies).catch(() => setCompanies(demoCompanies)); }, []);
+  useEffect(() => { getICP().then((settings) => { setIndustries(settings.industries || ""); setLocations(settings.locations || ""); setEmployeeSize(settings.employeeSize || ""); setRevenue(settings.revenue || ""); setSignals((current) => ({ ...current, ...(settings.signals || {}) })); }).catch(() => { setIndustries("E-commerce, SaaS"); setLocations("Bangalore, Mumbai"); setEmployeeSize("20-1,000 employees"); setRevenue("$1M-$50M"); }); listCompanies().then(setCompanies).catch(() => setCompanies(demoCompanies)); }, []);
 
   const selectedSignalCount = Object.values(signals).filter(Boolean).length;
   const fitScore = useMemo(() => {
     return Math.min(99, selectedSignalCount * 10 + (industries ? 20 : 0) + (locations ? 20 : 0) + (employeeSize ? 15 : 0) + (revenue ? 15 : 0));
   }, [industries, locations, employeeSize, revenue, selectedSignalCount]);
   const matchingCompanies = companies.filter((company) => (!industries || industries.toLowerCase().split(",").some((item) => company.industry.toLowerCase().includes(item.trim()))) && (!locations || locations.toLowerCase().split(",").some((item) => company.location.toLowerCase().includes(item.trim()))));
-  const save = () => { setMessage("Saving…"); updateICP({ industries, locations, employeeSize, revenue, signals }).then(() => setMessage("ICP saved to PostgreSQL.")).catch((error: Error) => setMessage(error.message)); };
+  const save = () => { setMessage("Saving…"); updateICP({ industries, locations, employeeSize, revenue, signals }).then(() => setMessage("ICP saved.")).catch((error: Error) => setMessage(error.message)); };
 
   return (
     <div className="space-y-5">

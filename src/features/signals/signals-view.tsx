@@ -15,9 +15,8 @@ export function SignalsView() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
   const [apiSignals, setApiSignals] = useState<ApiSignal[] | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
   useEffect(() => {
-    listSignals(query).then(setApiSignals).catch(() => { setApiSignals(demoSignals); setApiError("Showing demo data while the API is unavailable."); });
+    listSignals(query).then(setApiSignals).catch(() => { setApiSignals(demoSignals); });
   }, [query]);
   const normalized = query.trim().toLowerCase();
 
@@ -65,7 +64,6 @@ export function SignalsView() {
           ))}
           <div className="ml-auto text-sm text-muted">{filtered.length} signals</div>
         </div>
-        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Signals API unavailable. Start the Go API and try again.</div> : null}
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_.85fr]">

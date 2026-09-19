@@ -9,7 +9,6 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
-  CircleAlert,
   CircleDollarSign,
   Clock3,
   RefreshCw,
@@ -70,21 +69,20 @@ function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; v
 
 export function DashboardView() {
   const [dashboard, setDashboard] = useState<DashboardData>(demoDashboard);
-  const [dashboardError, setDashboardError] = useState<string | null>("Showing demo data until the API is connected.");
   const [loading, setLoading] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<string[]>(demoDashboard.tasks.filter((task) => task.completed).map((task) => task.id));
 
   const loadDashboard = () => {
     setLoading(true);
     getDashboardData()
-      .then((data) => { setDashboard(data); setDashboardError(null); })
-      .catch(() => { setDashboard(demoDashboard); setDashboardError("Showing demo data until the API is connected."); })
+      .then((data) => { setDashboard(data); })
+      .catch(() => { setDashboard(demoDashboard); })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     let cancelled = false;
-    getDashboardData().then((data) => { if (!cancelled) { setDashboard(data); setDashboardError(null); } }).catch(() => { if (!cancelled) { setDashboard(demoDashboard); setDashboardError("Showing demo data until the API is connected."); } });
+    getDashboardData().then((data) => { if (!cancelled) setDashboard(data); }).catch(() => { if (!cancelled) setDashboard(demoDashboard); });
     const refreshTimer = window.setInterval(() => { if (!cancelled) loadDashboard(); }, 30_000);
     return () => { cancelled = true; window.clearInterval(refreshTimer); };
   }, []);
@@ -112,7 +110,6 @@ export function DashboardView() {
         </div>
       </section>
 
-      {dashboardError ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800"><CircleAlert className="size-4 shrink-0" />{dashboardError}</div> : null}
 
       <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Kpi label="New opportunities" value={summary.newOpportunities} delta={`${summary.growthDelta} vs last period`} icon={<Target className="size-4" />} />

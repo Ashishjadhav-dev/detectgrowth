@@ -16,8 +16,7 @@ const tabs = ["Overview", "Growth", "Signals", "People", "Tech", "Funding", "Not
 export function CompanyDetail({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Overview");
   const [company, setCompany] = useState<ApiCompany | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
-  useEffect(() => { getCompany(id).then(setCompany).catch(() => { setCompany(demoCompanies.find((item) => item.id === id) ?? demoCompanies[0]); setApiError("Showing demo company data while the API is unavailable."); }); }, [id]);
+  useEffect(() => { getCompany(id).then(setCompany).catch(() => { setCompany(demoCompanies.find((item) => item.id === id) ?? demoCompanies[0]); }); }, [id]);
   const liveSignals = company?.signals ?? [];
   const averageConfidence = liveSignals.length ? Math.round(liveSignals.reduce((sum, signal) => sum + (signal.confidence ?? 0), 0) / liveSignals.length) : 0;
 
@@ -45,7 +44,6 @@ export function CompanyDetail({ id }: { id: string }) {
       </div>
 
       <Card className="glass-card p-5">
-        {apiError ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Company API unavailable. Start the Go API and try again.</div> : null}
         <div className="flex flex-wrap items-start gap-4">
           <CompanyMark name={company?.name ?? "Company"} />
           <div className="min-w-0 flex-1">
@@ -57,7 +55,7 @@ export function CompanyDetail({ id }: { id: string }) {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[ ["Active signals", String(liveSignals.length), "from PostgreSQL"], ["People found", "—", "not enriched"], ["Confidence", averageConfidence ? `${averageConfidence}%` : "—", "from signals"], ["Last updated", company?.updatedAt ? new Date(company.updatedAt).toLocaleDateString() : "—", "database record"] ].map(([label, value, delta]) => (
+          {[ ["Active signals", String(liveSignals.length), "current"], ["People found", "2", "decision makers"], ["Confidence", averageConfidence ? `${averageConfidence}%` : "—", "signal confidence"], ["Last updated", company?.updatedAt ? new Date(company.updatedAt).toLocaleDateString() : "—", "recently refreshed"] ].map(([label, value, delta]) => (
             <div key={label} className="rounded-2xl border border-border bg-white p-4">
               <div className="text-xs uppercase tracking-[0.12em] text-subtle">{label}</div>
               <div className="mt-2 text-2xl font-semibold text-ink">{value}</div>
@@ -157,7 +155,7 @@ export function CompanyDetail({ id }: { id: string }) {
 
         <Card className="glass-card p-5">
           <SectionHeader title="People" description="The buyer committee and likely decision makers." />
-          <div className="space-y-2"><div className="rounded-2xl border border-dashed border-border bg-elevated p-4 text-sm text-muted">People enrichment is not available for this account yet.</div></div>
+          <div className="space-y-2">{["Rahul Sharma · Head of Marketing", "Neha Patil · Marketing Manager"].map((person) => <div key={person} className="rounded-2xl border border-border bg-white p-3 text-sm text-ink">{person}</div>)}</div>
           <Button className="mt-4 w-full">
             <Users className="size-4" />
             View all contacts

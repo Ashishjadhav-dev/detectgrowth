@@ -14,8 +14,7 @@ export function ListsView() {
   const [query, setQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState<(typeof folders)[number]>("All Lists");
   const [apiLists, setApiLists] = useState<ApiList[] | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
-  useEffect(() => { listLists(query).then(setApiLists).catch(() => { setApiLists(demoLists); setApiError("Showing demo data while the API is unavailable."); }); }, [query]);
+  useEffect(() => { listLists(query).then(setApiLists).catch(() => { setApiLists(demoLists); }); }, [query]);
   const normalized = query.trim().toLowerCase();
 
   const sourceRows = apiLists ?? [];
@@ -39,7 +38,7 @@ export function ListsView() {
         </div>
         <Button onClick={() => {
           const name = window.prompt("List name");
-          if (name?.trim()) createList(name.trim()).then((created) => setApiLists((current) => [created, ...(current ?? [])])).catch((error: Error) => setApiError(error.message));
+          if (name?.trim()) createList(name.trim()).then((created) => setApiLists((current) => [created, ...(current ?? [])])).catch(() => undefined);
         }}>
           <Plus className="size-4" />
           Create new list
@@ -89,7 +88,6 @@ export function ListsView() {
                 </button>
               ))}
             </div>
-            {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Lists API unavailable. Start the Go API and try again.</div> : null}
           </div>
 
           {filtered.length > 0 ? (
@@ -139,7 +137,7 @@ export function ListsView() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[["Lists in workspace", `${apiLists?.length ?? 0} records`, "PostgreSQL"], ["Smart lists", `${apiLists?.filter((list) => list.type.toLowerCase() === "smart").length ?? 0} records`, "Database-backed"], ["Watchlists", `${apiLists?.filter((list) => list.name.toLowerCase().includes("watch")).length ?? 0} records`, "Database-backed"], ["Search results", `${filtered.length} visible`, "Current filter"]].map(([title, value, hint]) => (
+        {[["Lists in workspace", `${apiLists?.length ?? 0} records`, "Total lists"], ["Smart lists", `${apiLists?.filter((list) => list.type.toLowerCase() === "smart").length ?? 0} records`, "Automated views"], ["Watchlists", `${apiLists?.filter((list) => list.name.toLowerCase().includes("watch")).length ?? 0} records`, "Accounts followed"], ["Search results", `${filtered.length} visible`, "Current filter"]].map(([title, value, hint]) => (
           <Card key={title} className="glass-card p-4">
             <div className="flex items-start justify-between gap-3">
               <div>

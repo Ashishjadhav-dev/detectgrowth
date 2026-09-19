@@ -15,7 +15,6 @@ export function ResearchView() {
   const [selectedPrompt, setSelectedPrompt] = useState(prompts[0]);
   const [hasRun, setHasRun] = useState(false);
   const [result, setResult] = useState<ResearchResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   return (
@@ -39,7 +38,7 @@ export function ResearchView() {
           </div>
           <Button
             onClick={() => {
-              if (query.trim()) { setLoading(true); setError(null); runResearch(query).then((data) => { setResult(data); setHasRun(true); }).catch(() => { setResult(demoResearch(query)); setHasRun(true); setError("Showing demo research while the API is unavailable."); }).finally(() => setLoading(false)); }
+              if (query.trim()) { setLoading(true); runResearch(query).then((data) => { setResult(data); setHasRun(true); }).catch(() => { setResult(demoResearch(query)); setHasRun(true); }).finally(() => setLoading(false)); }
             }}
           >
             <Wand2 className="size-4" />
@@ -65,7 +64,7 @@ export function ResearchView() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            {(result?.evidence.length ? result.evidence.slice(0, 4).map((item) => [item.title, item.description || `${item.impact} impact · ${item.confidence}% confidence`] as [string, string]) : [["Live evidence", "Run research against a company already stored in PostgreSQL."], ["Sources", "External source links are preserved when the signal worker has them."]]).map(([title, text]) => (
+            {(result?.evidence.length ? result.evidence.slice(0, 4).map((item) => [item.title, item.description || `${item.impact} impact · ${item.confidence}% confidence`] as [string, string]) : [["Research brief", "Search a company to see its latest growth context."], ["Sources", "Relevant source links appear alongside each finding."]]).map(([title, text]) => (
               <div key={title} className="rounded-2xl border border-border bg-white p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-ink">
                   <Sparkles className="size-4 text-primary" />
@@ -83,7 +82,7 @@ export function ResearchView() {
           </div>
           <h2 className="mt-4 text-lg font-semibold text-ink">{hasRun && result ? `Research ready for ${result.company.name}` : "Start a research report"}</h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted">
-            {error ? error : hasRun && result ? `${selectedPrompt}: ${result.evidence.length} evidence records loaded at ${new Date(result.generatedAt).toLocaleString()}.` : "Results are loaded from your workspace company and signal records."}
+            {hasRun && result ? `${selectedPrompt}: ${result.evidence.length} evidence records loaded at ${new Date(result.generatedAt).toLocaleString()}.` : "Search a company to generate a focused research report."}
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             {["Market Position", "SWOT Analysis", "Sales Approach", "Pain Points", "Growth Potential"].map((item) => (

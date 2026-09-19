@@ -74,7 +74,7 @@ export default function Page() {
           <Card className="glass-card p-5">
             <div className="text-sm font-semibold text-ink">Final state</div>
             <div className="mt-4 rounded-3xl border border-dashed border-border bg-elevated p-5 text-sm leading-6 text-muted">
-              The wireframe’s done state becomes a confident handoff to the dashboard, not a dead end.
+              Finish your setup and move directly into the dashboard.
             </div>
             <Button className="mt-4 w-full">Go to dashboard</Button>
           </Card>

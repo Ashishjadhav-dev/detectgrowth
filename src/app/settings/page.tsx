@@ -11,7 +11,7 @@ export default function Page() {
 
       <section className="grid gap-4 xl:grid-cols-[280px_1fr]">
         <Card className="glass-card p-4">
-          <SectionHeader title="Settings sections" description="A place for the supporting admin flows from the wireframe." />
+          <SectionHeader title="Settings sections" description="Manage your workspace preferences." />
           <div className="space-y-2">
             {["Profile", "Organization", "Security", "Notifications", "Billing", "API keys"].map((item, index) => (
               <button
@@ -27,7 +27,7 @@ export default function Page() {
         </Card>
 
         <Card className="glass-card p-6">
-          <SectionHeader title="Workspace overview" description="This page is scaffolded as a richer admin surface rather than a placeholder." />
+          <SectionHeader title="Workspace overview" description="A quick view of your workspace configuration." />
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {[
               ["Workspace", "Morgan Growth Team", "Active"],
