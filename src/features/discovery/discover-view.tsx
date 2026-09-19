@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Bookmark,
@@ -25,6 +26,7 @@ import { listCompanies, type ApiCompany } from "@/lib/api/companies";
 import { listPeople, type ApiPerson } from "@/lib/api/people";
 import { listSignals, type ApiSignal } from "@/lib/api/signals";
 import { demoCompanies, demoPeople, demoSignals } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 const tabs = ["Companies", "People", "Signals", "Saved Views"] as const;
 const quickFilters = [
@@ -37,14 +39,15 @@ const quickFilters = [
 ] as const;
 
 export function DiscoverView() {
-  const [query, setQuery] = useState("");
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Companies");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterFocus, setFilterFocus] = useState<"All" | "High fit" | "High intent" | "Recently active">("All");
   const [apiCompanies, setApiCompanies] = useState<ApiCompany[] | null>(null);
   const [apiPeople, setApiPeople] = useState<ApiPerson[] | null>(null);
   const [apiSignals, setApiSignals] = useState<ApiSignal[] | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,16 +57,18 @@ export function DiscoverView() {
           setApiCompanies(companies);
           setApiPeople(people);
           setApiSignals(signals);
-          setApiError(null);
+          setLoading(false);
         }
       })
       .catch((error: Error) => {
-        if (!cancelled) { setApiCompanies(demoCompanies); setApiPeople(demoPeople); setApiSignals(demoSignals); setApiError("Showing demo data while the API is unavailable."); }
+        if (!cancelled) { setApiCompanies(demoCompanies); setApiPeople(demoPeople); setApiSignals(demoSignals); setLoading(false); }
       });
     return () => {
       cancelled = true;
     };
   }, [query]);
+
+  if (loading && !apiCompanies) return <PageSkeleton variant="results" />;
 
   const normalized = query.trim().toLowerCase();
 
@@ -208,7 +213,6 @@ export function DiscoverView() {
             ))}
           </div>
         </div>
-        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Discovery API unavailable. Start the Go API and try again.</div> : null}
       </Card>
 
       {selectedIds.length > 0 && activeTab === "Companies" ? (
@@ -232,7 +236,7 @@ export function DiscoverView() {
 
       <section className="grid gap-4 xl:grid-cols-[280px_1fr]">
         <Card className="glass-card p-4">
-          <SectionHeader title="Filters" description="Keep the search focused with the same language the wireframes use." />
+          <SectionHeader title="Filters" description="Keep the search focused with quick filters." />
           <div className="space-y-4">
             {[
               ["Industry", ["SaaS", "E-commerce", "Fintech", "Healthcare"]],

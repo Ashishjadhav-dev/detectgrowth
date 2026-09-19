@@ -104,7 +104,7 @@ function JobsLoadingSkeleton() {
 
 export function JobsView() {
   const [data, setData] = useState<JobsResponse | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState("accenture");
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [source, setSource] = useState("All sources");
   const [sourceMenuOpen, setSourceMenuOpen] = useState(false);

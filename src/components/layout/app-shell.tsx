@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { hasDemoSession } from "@/lib/auth";
+import { ToastProvider } from "@/components/ui/toast";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -30,10 +31,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (!authReady) return <div className="min-h-screen bg-[#f7f8fc]" />;
 
   if (shellHidden) {
-    return <div className="min-h-screen">{children}</div>;
+    return <ToastProvider><div className="min-h-screen">{children}</div></ToastProvider>;
   }
 
-  return (
+  return <ToastProvider>
     <div className="min-h-screen lg:flex">
       <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
       <div className="min-w-0 flex-1">
@@ -41,5 +42,5 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-[1600px] p-4 md:p-6 lg:p-7">{children}</main>
       </div>
     </div>
-  );
+  </ToastProvider>;
 }

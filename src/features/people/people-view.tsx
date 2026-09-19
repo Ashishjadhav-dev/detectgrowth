@@ -9,6 +9,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { listPeople, type ApiPerson } from "@/lib/api/people";
 import { SectionHeader } from "@/components/ui/patterns";
 import { demoPeople } from "@/data/demo";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 
 const tabs = ["All", "Marketing", "Sales", "Leadership", "Open to outreach"] as const;
 
@@ -16,11 +17,14 @@ export function PeopleView() {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("All");
   const [apiPeople, setApiPeople] = useState<ApiPerson[] | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    listPeople(query).then(setApiPeople).catch(() => { setApiPeople(demoPeople); setApiError("Showing demo data while the API is unavailable."); });
+    setLoading(true);
+    listPeople(query).then((data) => { setApiPeople(data); setLoading(false); }).catch(() => { setApiPeople(demoPeople); setLoading(false); });
   }, [query]);
+
+  if (loading && !apiPeople) return <PageSkeleton variant="results" />;
 
   const normalized = query.trim().toLowerCase();
   const sourcePeople = apiPeople ?? [];
@@ -77,7 +81,6 @@ export function PeopleView() {
           ))}
           <div className="ml-auto text-sm text-muted">{filtered.length} contacts</div>
         </div>
-        {apiError ? <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">People API unavailable. Start the Go API and try again.</div> : null}
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-[1.05fr_.95fr]">
