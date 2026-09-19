@@ -30,12 +30,16 @@ type DateRange = "7" | "30" | "90";
 const dateRangeLabels: Record<DateRange, string> = { "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days" };
 
 function TrendChart({ range }: { range: DateRange }) {
-  const chartPaths: Record<DateRange, { area: string; line: string; labels: string[] }> = {
-    "7": { area: "M0 148 C70 140 100 116 155 124 S245 88 315 102 S410 62 480 78 S570 42 640 48 L640 190 L0 190 Z", line: "M0 148 C70 140 100 116 155 124 S245 88 315 102 S410 62 480 78 S570 42 640 48", labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Today"] },
-    "30": { area: "M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38 L640 190 L0 190 Z", line: "M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38", labels: ["Jun 01", "Jun 08", "Jun 15", "Jun 22", "Today"] },
-    "90": { area: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28 L640 190 L0 190 Z", line: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28", labels: ["Apr 01", "Apr 22", "May 13", "Jun 03", "Jun 24", "Today"] },
+  const chartPaths: Record<DateRange, { area: string; line: string; labels: string[]; points: { x: number; y: number; score: number; change: string; signals: number }[] }> = {
+    "7": { area: "M0 148 C70 140 100 116 155 124 S245 88 315 102 S410 62 480 78 S570 42 640 48 L640 190 L0 190 Z", line: "M0 148 C70 140 100 116 155 124 S245 88 315 102 S410 62 480 78 S570 42 640 48", labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Today"], points: [{ x: 0, y: 148, score: 78, change: "+2.1%", signals: 4 }, { x: 128, y: 130, score: 80, change: "+2.8%", signals: 6 }, { x: 256, y: 112, score: 82, change: "+1.4%", signals: 8 }, { x: 384, y: 91, score: 84, change: "+3.2%", signals: 10 }, { x: 512, y: 67, score: 86, change: "+2.6%", signals: 12 }, { x: 640, y: 48, score: 87, change: "+4.1%", signals: 14 }] },
+    "30": { area: "M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38 L640 190 L0 190 Z", line: "M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38", labels: ["Jun 01", "Jun 08", "Jun 15", "Jun 22", "Today"], points: [{ x: 0, y: 150, score: 72, change: "+1.8%", signals: 18 }, { x: 160, y: 124, score: 77, change: "+4.3%", signals: 24 }, { x: 320, y: 103, score: 81, change: "+5.1%", signals: 29 }, { x: 480, y: 77, score: 84, change: "+3.7%", signals: 31 }, { x: 640, y: 38, score: 87, change: "+6.2%", signals: 34 }] },
+    "90": { area: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28 L640 190 L0 190 Z", line: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28", labels: ["Apr 01", "Apr 22", "May 13", "Jun 03", "Jun 24", "Today"], points: [{ x: 0, y: 164, score: 68, change: "+0.9%", signals: 42 }, { x: 128, y: 143, score: 72, change: "+2.2%", signals: 61 }, { x: 256, y: 122, score: 76, change: "+3.4%", signals: 79 }, { x: 384, y: 99, score: 80, change: "+4.6%", signals: 96 }, { x: 512, y: 71, score: 84, change: "+5.4%", signals: 121 }, { x: 640, y: 28, score: 87, change: "+7.8%", signals: 146 }] },
   };
   const chart = chartPaths[range];
+  const [activePoint, setActivePoint] = useState<(typeof chart.points)[number] | null>(chart.points[chart.points.length - 1]);
+  // The chart points are static for each selected range, so resetting on range is intentional.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setActivePoint(chart.points[chart.points.length - 1]); }, [range]);
   return (
     <div className="relative h-52 w-full overflow-hidden rounded-2xl bg-[linear-gradient(180deg,rgba(91,53,230,.09),rgba(91,53,230,0))] px-2 pt-4 sm:h-60 sm:px-4">
       <div className="pointer-events-none absolute inset-x-3 top-4 bottom-8 flex flex-col justify-between sm:inset-x-4">
@@ -55,8 +59,9 @@ function TrendChart({ range }: { range: DateRange }) {
         </defs>
         <path d={chart.area} fill="url(#growth-fill)" />
         <path d={chart.line} fill="none" stroke="#5b35e6" strokeLinecap="round" strokeWidth="3" />
-        <circle cx="640" cy="28" r="5" fill="#fff" stroke="#5b35e6" strokeWidth="3" />
+        {chart.points.map((point) => <g key={`${point.x}-${point.y}`}><circle cx={point.x} cy={point.y} r="14" fill="transparent" tabIndex={0} aria-label={`${point.score} growth score on ${chart.labels[Math.round((point.x / 640) * (chart.labels.length - 1))]}`} onMouseEnter={() => setActivePoint(point)} onFocus={() => setActivePoint(point)} onBlur={() => setActivePoint(null)} onMouseLeave={() => setActivePoint(null)} /><circle cx={point.x} cy={point.y} r={activePoint?.x === point.x ? 6 : 4} fill="#fff" stroke="#5b35e6" strokeWidth={activePoint?.x === point.x ? 3 : 2} className="transition-all duration-150" /></g>)}
       </svg>
+      {activePoint ? <div className="pointer-events-none absolute z-10 min-w-[150px] -translate-x-1/2 -translate-y-[115%] rounded-xl border border-border bg-white px-3 py-2 shadow-[0_12px_30px_rgba(23,27,43,.16)]" style={{ left: `${Math.min(88, Math.max(12, (activePoint.x / 640) * 100))}%`, top: `${Math.max(22, 10 + (activePoint.y / 190) * 72)}%` }}><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-subtle">{chart.labels[Math.round((activePoint.x / 640) * (chart.labels.length - 1))]}</div><div className="mt-1 flex items-baseline justify-between gap-3"><span className="text-lg font-semibold text-ink">{activePoint.score}</span><span className="text-xs font-medium text-success">{activePoint.change}</span></div><div className="mt-1 text-[11px] text-muted">{activePoint.signals} signals detected</div></div> : null}
       <div className="absolute inset-x-10 bottom-2 flex justify-between text-[10px] text-subtle sm:inset-x-14">{chart.labels.map((label) => <span key={label}>{label}</span>)}</div>
     </div>
   );
