@@ -9,6 +9,8 @@ import { SectionHeader } from "@/components/ui/patterns";
 import { listSignals, type ApiSignal } from "@/lib/api/signals";
 import { demoSignals } from "@/data/demo";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { Dialog } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/toast";
 
 const filters = ["All", "High", "Medium", "Low"] as const;
 
@@ -17,6 +19,9 @@ export function SignalsView() {
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("All");
   const [apiSignals, setApiSignals] = useState<ApiSignal[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertName, setAlertName] = useState("");
+  const { showToast } = useToast();
   useEffect(() => {
     setLoading(true);
     listSignals(query).then((data) => { setApiSignals(data); setLoading(false); }).catch(() => { setApiSignals(demoSignals); setLoading(false); });
@@ -42,8 +47,10 @@ export function SignalsView() {
           <h1 className="page-title mt-2">Live growth and intent signals</h1>
           <p className="mt-1 text-sm text-muted">Review recent events, confidence, and the recommended next action in one pass.</p>
         </div>
-        <Button>Create alert</Button>
+        <Button onClick={() => setAlertOpen(true)}>Create alert</Button>
       </section>
+
+      <Dialog open={alertOpen} onClose={() => setAlertOpen(false)} title="Create signal alert" description="Get a reminder when matching growth signals appear."><form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (!alertName.trim()) return; showToast(`Alert “${alertName.trim()}” created`); setAlertName(""); setAlertOpen(false); }}><label className="block"><span className="mb-2 block text-sm font-medium text-ink">Alert name</span><input autoFocus required value={alertName} onChange={(event) => setAlertName(event.target.value)} placeholder="High intent accounts" className="h-10 w-full rounded-xl border border-border px-3 text-sm outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10" /></label><div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setAlertOpen(false)}>Cancel</Button><Button type="submit">Create alert</Button></div></form></Dialog>
 
       <Card className="glass-card p-4">
         <div className="flex flex-col gap-3 lg:flex-row">

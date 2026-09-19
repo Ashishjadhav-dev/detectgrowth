@@ -11,12 +11,14 @@ import { SectionHeader } from "@/components/ui/patterns";
 import { getCompany, type ApiCompany } from "@/lib/api/companies";
 import { demoCompanies } from "@/data/demo";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { useToast } from "@/components/ui/toast";
 
 const tabs = ["Overview", "Growth", "Signals", "People", "Tech", "Funding", "Notes"] as const;
 
 export function CompanyDetail({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Overview");
   const [company, setCompany] = useState<ApiCompany | null>(null);
+  const { showToast } = useToast();
   useEffect(() => { getCompany(id).then(setCompany).catch(() => { setCompany(demoCompanies.find((item) => item.id === id) ?? demoCompanies[0]); }); }, [id]);
   const liveSignals = company?.signals ?? [];
   const averageConfidence = liveSignals.length ? Math.round(liveSignals.reduce((sum, signal) => sum + (signal.confidence ?? 0), 0) / liveSignals.length) : 0;
@@ -31,7 +33,7 @@ export function CompanyDetail({ id }: { id: string }) {
           Back to discovery
         </Link>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary">
+          <Button variant="secondary" onClick={() => showToast(`${company?.name ?? "Company"} saved to your workspace`)}>
             <Bookmark className="size-4" />
             Save
           </Button>

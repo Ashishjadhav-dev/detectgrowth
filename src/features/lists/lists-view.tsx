@@ -9,12 +9,17 @@ import { SectionHeader } from "@/components/ui/patterns";
 import { createList, listLists, type ApiList } from "@/lib/api/lists";
 import { demoLists } from "@/data/demo";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { Dialog } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/toast";
 
 const folders = ["All Lists", "Smart Lists", "Watchlists", "Saved Searches"] as const;
 export function ListsView() {
   const [query, setQuery] = useState("");
   const [activeFolder, setActiveFolder] = useState<(typeof folders)[number]>("All Lists");
   const [apiLists, setApiLists] = useState<ApiList[] | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const { showToast } = useToast();
   useEffect(() => { listLists(query).then(setApiLists).catch(() => { setApiLists(demoLists); }); }, [query]);
   if (!apiLists) return <PageSkeleton variant="results" />;
   const normalized = query.trim().toLowerCase();
@@ -38,14 +43,18 @@ export function ListsView() {
           <h1 className="page-title mt-2">Saved lists and watchlists</h1>
           <p className="mt-1 text-sm text-muted">Filter, search, and manage saved workspaces in a more useful operations view.</p>
         </div>
-        <Button onClick={() => {
-          const name = window.prompt("List name");
-          if (name?.trim()) createList(name.trim()).then((created) => setApiLists((current) => [created, ...(current ?? [])])).catch(() => undefined);
-        }}>
+        <Button onClick={() => setCreateOpen(true)}>
           <Plus className="size-4" />
           Create new list
         </Button>
       </section>
+
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="Create a list" description="Group accounts and contacts so your team can follow up consistently.">
+        <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); const name = newListName.trim(); if (!name) return; createList(name).then((created) => { setApiLists((current) => [created, ...(current ?? [])]); showToast("List created successfully"); }).catch(() => { setApiLists((current) => [{ id: `demo-${Date.now()}`, name, type: "manual", count: 0, updated: "Just now" }, ...(current ?? [])]); showToast("List created successfully"); }).finally(() => { setNewListName(""); setCreateOpen(false); }); }}>
+          <label className="block"><span className="mb-2 block text-sm font-medium text-ink">List name</span><input autoFocus required value={newListName} onChange={(event) => setNewListName(event.target.value)} placeholder="e.g. High intent accounts" className="h-10 w-full rounded-xl border border-border bg-white px-3.5 text-sm outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/10" /></label>
+          <div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit">Create list</Button></div>
+        </form>
+      </Dialog>
 
       <section className="grid gap-4 xl:grid-cols-[280px_1fr]">
         <Card className="glass-card p-4">
