@@ -36,10 +36,8 @@ function TrendChart({ range }: { range: DateRange }) {
     "90": { area: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28 L640 190 L0 190 Z", line: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28", labels: ["Apr 01", "Apr 22", "May 13", "Jun 03", "Jun 24", "Today"], points: [{ x: 0, y: 164, score: 68, change: "+0.9%", signals: 42 }, { x: 128, y: 143, score: 72, change: "+2.2%", signals: 61 }, { x: 256, y: 122, score: 76, change: "+3.4%", signals: 79 }, { x: 384, y: 99, score: 80, change: "+4.6%", signals: 96 }, { x: 512, y: 71, score: 84, change: "+5.4%", signals: 121 }, { x: 640, y: 28, score: 87, change: "+7.8%", signals: 146 }] },
   };
   const chart = chartPaths[range];
-  const [activePoint, setActivePoint] = useState<(typeof chart.points)[number] | null>(chart.points[chart.points.length - 1]);
-  // The chart points are static for each selected range, so resetting on range is intentional.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setActivePoint(chart.points[chart.points.length - 1]); }, [range]);
+  const [activePoint, setActivePoint] = useState<(typeof chart.points)[number] | null>(null);
+  useEffect(() => { setActivePoint(null); }, [range]);
   const handleChartMove = (event: React.PointerEvent<SVGRectElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const chartX = Math.min(640, Math.max(0, ((event.clientX - bounds.left) / bounds.width) * 640));
