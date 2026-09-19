@@ -39,3 +39,16 @@ test("rejects untrusted origins and malformed credentials", async () => {
   assert.equal((await request("sign-up", { email: "bad", password: "x" })).status, 400);
   assert.equal((await request("session", null, "detectgrowth_session=forged")).body.user, null);
 });
+
+test("recovery code resets password once and revokes existing sessions", async () => {
+  const input = { email: `recovery-${crypto.randomUUID()}@example.com`, name: "Recovery User", password: "Initial-password-123" };
+  const created = await request("sign-up", input);
+  assert.equal(typeof created.body.recoveryCode, "string");
+  const reset = await request("reset-password", { email: input.email, recoveryCode: created.body.recoveryCode, password: "Replacement-password-123" });
+  assert.equal(reset.status, 200);
+  assert.notEqual(reset.body.recoveryCode, created.body.recoveryCode);
+  assert.equal((await request("session", null, created.cookie)).body.user, null);
+  assert.equal((await request("sign-in", input)).status, 400);
+  assert.equal((await request("sign-in", { ...input, password: "Replacement-password-123" })).status, 200);
+  assert.equal((await request("reset-password", { email: input.email, recoveryCode: created.body.recoveryCode, password: "Another-password-123" })).status, 400);
+});

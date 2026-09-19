@@ -5,7 +5,7 @@ import path from "node:path";
 // Local server adapter. Set AUTH_DATA_DIR to persistent storage when deploying.
 const directory = process.env.AUTH_DATA_DIR ?? path.join(process.cwd(), ".data");
 type User = { id: string; name: string; email: string; workspace: string; isDemo: boolean };
-type Account = User & { hash: string; salt: string };
+type Account = User & { hash: string; salt: string; recoveryHash?: string };
 type Session = { user: User; expires: number };
 type Database = { accounts: Account[]; sessions: Record<string, Session>; workspaces?: Record<string, Record<string, unknown>> };
 const shared = globalThis as typeof globalThis & { workspaceWriteQueue?: Promise<unknown> };
@@ -32,7 +32,7 @@ export function verify(password: string, account: Account) {
   return timingSafeEqual(Buffer.from(credentials(password, account.salt).hash, "hex"), Buffer.from(account.hash, "hex"));
 }
 export function publicUser(account: Account): User {
-  const { hash: _hash, salt: _salt, ...user } = account;
+  const { hash: _hash, salt: _salt, recoveryHash: _recoveryHash, ...user } = account;
   return user;
 }
 export function newSession(db: Database, user: User) {

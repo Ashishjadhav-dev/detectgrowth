@@ -97,3 +97,29 @@ test("navigation collapses or opens a keyboard-accessible mobile drawer", async 
     await expect(page.getByRole("button", { name: "Expand sidebar" })).toBeVisible();
   }
 });
+
+test("forgotten password can be recovered with the registration code", async ({ page }) => {
+  const email = `recover-ui-${crypto.randomUUID()}@example.com`;
+  await page.goto("/auth");
+  await page.getByRole("button", { name: "Create a new account" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Recovery User");
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("First-password-123");
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Save your recovery code" })).toBeVisible();
+  const code = await page.locator("code").textContent();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Sign out", exact: true }).last().click();
+  await expect(page).toHaveURL(/\/auth$/);
+  await page.getByRole("button", { name: "Forgot password?" }).click();
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Recovery code", { exact: true }).fill(code!);
+  await page.getByLabel("Password", { exact: true }).fill("Second-password-123");
+  await page.getByRole("button", { name: "Reset password", exact: true }).click();
+  await expect(page.getByText("Password reset. Sign in with your new password.")).toBeVisible();
+  await page.getByLabel("Password", { exact: true }).fill("Second-password-123");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Hi Recovery User" })).toBeVisible();
+});

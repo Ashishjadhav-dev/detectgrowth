@@ -8,6 +8,9 @@ registered accounts also start with sample records that can be edited and delete
 
 - Account registration, returning sign-in, one-click demo login, logout, profile
   changes, password changes, and seven-day server-validated sessions.
+- Forgotten-password recovery using a code issued during registration. Recovery
+  codes are stored hashed on the server, rotate after use, and revoke old sessions.
+  Email verification and emailed reset links still require an email provider.
 - Workspace-isolated company, contact, signal, opportunity, and list CRUD; search,
   category filters, saved records, CSV export, notes, and pipeline stage changes.
 - Persisted dashboard tasks, job bookmarks, preferences, and notification read state.
@@ -50,6 +53,7 @@ server adapter does not require rewriting page components.
 ## Branch structure
 
 Feature branches are stacked: `feat/auth-session-foundation` →
-`feat/workspace-data-persistence` → `feat/responsive-product-flows`.
+`feat/workspace-data-persistence` → `feat/responsive-product-flows` →
+`feat/account-recovery`.
 The last branch contains the preceding changes. No branch is merged into develop
 or release-next automatically.
