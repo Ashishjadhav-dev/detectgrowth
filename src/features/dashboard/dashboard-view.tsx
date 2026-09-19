@@ -100,10 +100,13 @@ export function DashboardView() {
 
   const loadDashboard = () => {
     setLoading(true);
-    getDashboardData()
-      .then((data) => { setDashboard(data); })
-      .catch(() => { setDashboard(demoDashboard); })
-      .finally(() => setLoading(false));
+    const minimumAnimation = new Promise<void>((resolve) => window.setTimeout(resolve, 650));
+    Promise.all([
+      getDashboardData()
+        .then((data) => { setDashboard(data); })
+        .catch(() => { setDashboard(demoDashboard); }),
+      minimumAnimation,
+    ]).finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -134,7 +137,7 @@ export function DashboardView() {
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
           <div className="relative"><Button variant="secondary" size="sm" onClick={() => setDateMenuOpen((open) => !open)} aria-expanded={dateMenuOpen} aria-haspopup="listbox"><CalendarDays className="size-4" />{selectedRange}<ChevronDown className={`size-3.5 transition-transform duration-200 ${dateMenuOpen ? "rotate-180" : ""}`} /></Button>{dateMenuOpen ? <div className="absolute right-0 top-11 z-20 w-40 rounded-xl border border-border bg-white p-1.5 shadow-[0_16px_40px_rgba(23,27,43,.14)]" role="listbox" aria-label="Date range"><div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle">Date range</div>{(Object.keys(dateRangeLabels) as DateRange[]).map((option) => <button type="button" key={option} role="option" aria-selected={dateRange === option} onClick={() => { setDateRange(option); setDateMenuOpen(false); }} className={`flex w-full items-center rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors ${dateRange === option ? "bg-primary-soft text-primary" : "text-muted hover:bg-elevated hover:text-ink"}`}>{dateRangeLabels[option]}</button>)}</div> : null}</div>
-          <Button variant="secondary" size="sm" onClick={loadDashboard} disabled={loading}><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
+          <Button variant="secondary" size="sm" onClick={loadDashboard} disabled={loading}><RefreshCw className={`size-4 transition-transform duration-200 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
         </div>
       </section>
 
