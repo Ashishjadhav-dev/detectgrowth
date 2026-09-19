@@ -9,6 +9,7 @@ import { CompanyMark } from "@/components/companies/company-mark";
 import { Progress } from "@/components/ui/progress";
 import { SectionHeader } from "@/components/ui/patterns";
 import { getCompany, type ApiCompany } from "@/lib/api/companies";
+import { demoCompanies } from "@/data/demo";
 
 const tabs = ["Overview", "Growth", "Signals", "People", "Tech", "Funding", "Notes"] as const;
 
@@ -16,7 +17,7 @@ export function CompanyDetail({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Overview");
   const [company, setCompany] = useState<ApiCompany | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
-  useEffect(() => { getCompany(id).then(setCompany).catch((error: Error) => setApiError(error.message)); }, [id]);
+  useEffect(() => { getCompany(id).then(setCompany).catch(() => { setCompany(demoCompanies.find((item) => item.id === id) ?? demoCompanies[0]); setApiError("Showing demo company data while the API is unavailable."); }); }, [id]);
   const liveSignals = company?.signals ?? [];
   const averageConfidence = liveSignals.length ? Math.round(liveSignals.reduce((sum, signal) => sum + (signal.confidence ?? 0), 0) / liveSignals.length) : 0;
 

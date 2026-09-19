@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { SectionHeader } from "@/components/ui/patterns";
 import { listSignals, type ApiSignal } from "@/lib/api/signals";
+import { demoSignals } from "@/data/demo";
 
 const filters = ["All", "High", "Medium", "Low"] as const;
 
@@ -16,7 +17,7 @@ export function SignalsView() {
   const [apiSignals, setApiSignals] = useState<ApiSignal[] | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   useEffect(() => {
-    listSignals(query).then(setApiSignals).catch((error: Error) => setApiError(error.message));
+    listSignals(query).then(setApiSignals).catch(() => { setApiSignals(demoSignals); setApiError("Showing demo data while the API is unavailable."); });
   }, [query]);
   const normalized = query.trim().toLowerCase();
 

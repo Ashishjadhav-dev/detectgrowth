@@ -33,6 +33,7 @@ import {
   SmallStat,
   SummaryPill,
 } from "@/components/ui/patterns";
+import { demoDashboard } from "@/data/demo";
 
 const moduleCards = [
   {
@@ -94,7 +95,7 @@ export function DashboardView() {
           }
         })
         .catch((error: Error) => {
-          if (!cancelled) setDashboardError(error.message);
+          if (!cancelled) { setDashboard(demoDashboard); setDashboardError("Showing demo data while the API is unavailable."); }
         });
     };
     loadDashboard();

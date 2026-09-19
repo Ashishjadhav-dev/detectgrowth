@@ -11,12 +11,13 @@ import { Score } from "@/components/ui/score";
 import { CompanyMark } from "@/components/companies/company-mark";
 import { SectionHeader } from "@/components/ui/patterns";
 import { getOpportunity, type ApiOpportunity } from "@/lib/api/opportunities";
+import { demoOpportunities } from "@/data/demo";
 
 const tabs = ["Overview", "Signals", "People", "Research", "Notes", "Activity"] as const;
 
 export function OpportunityDetail({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Overview"); const [opportunity, setOpportunity] = useState<ApiOpportunity | null>(null); const [error, setError] = useState<string | null>(null);
-  useEffect(() => { getOpportunity(id).then(setOpportunity).catch((requestError: Error) => setError(requestError.message)); }, [id]);
+  useEffect(() => { getOpportunity(id).then(setOpportunity).catch(() => { setOpportunity(demoOpportunities.find((item) => item.id === id) ?? demoOpportunities[0]); setError("Showing demo opportunity data while the API is unavailable."); }); }, [id]);
   const signals = opportunity?.signals ?? [];
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/opportunities" className="inline-flex items-center gap-2 text-sm text-muted hover:text-primary"><ArrowLeft className="size-4" />Back to opportunities</Link><div className="flex gap-2"><Button variant="secondary"><Bookmark className="size-4" />Save</Button><Button variant="secondary"><Download className="size-4" />Export</Button><Button variant="secondary" aria-label="More actions"><MoreHorizontal className="size-4" /></Button></div></div>
