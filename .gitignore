@@ -7,6 +7,8 @@ out
 *.log
 *.tsbuildinfo
 .data/
+test-results/
+playwright-report/
 
 # Go backend
 backend/bin

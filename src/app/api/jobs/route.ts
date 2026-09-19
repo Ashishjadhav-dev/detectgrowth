@@ -164,6 +164,11 @@ async function fetchFeed(feed: ReturnType<typeof feedsFor>[number]) {
 }
 
 export async function GET(request: Request) {
+  if (process.env.JOBS_DATA_MODE !== "live") {
+    const { demoJobs } = await import("@/data/demo-jobs");
+    const query = new URL(request.url).searchParams.get("search")?.trim().toLowerCase() ?? "";
+    return NextResponse.json({ ...demoJobs, jobs: demoJobs.jobs.filter((job) => Object.values(job).some((value) => typeof value === "string" && value.toLowerCase().includes(query))) });
+  }
   const feeds = feedsFor(request);
   const search = new URL(request.url).searchParams.get("search")?.trim().toLowerCase() ?? "";
   const results = await Promise.allSettled(feeds.map(fetchFeed));

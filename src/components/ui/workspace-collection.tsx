@@ -24,6 +24,7 @@ export function WorkspaceCollection({ resource, title, description, fields, seed
   const [refresh, setRefresh] = useState(0);
   const { showToast } = useToast();
   const path = `/api/v1/${resource}`;
+  useEffect(() => { setQuery(new URLSearchParams(window.location.search).get("query") ?? ""); }, []);
   useEffect(() => {
     let cancelled = false;
     apiRequest<Row[]>(path).then((data) => { if (!cancelled) { setRows(data); setError(""); } }).catch(() => {

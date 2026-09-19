@@ -2,7 +2,7 @@
 import { useSession } from "@/components/auth/session-provider";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bell,
   BriefcaseBusiness,
@@ -32,7 +32,7 @@ const navGroups = [
       ["Discover", "/discover", Compass],
       ["Signals", "/signals", Zap],
       ["Jobs", "/jobs", BriefcaseBusiness],
-      ["Opportunities", "/opportunities/abc-fashion", Radar],
+      ["Opportunities", "/opportunities", Radar],
     ],
   },
   {
@@ -64,6 +64,23 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const mobileVisible = mobileOpen;
+  const drawer = useRef<HTMLElement>(null);
+  const closeDrawer = useRef(onClose);
+  closeDrawer.current = onClose;
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const controls = () => Array.from(drawer.current?.querySelectorAll<HTMLElement>("a, button") ?? []);
+    controls()[0]?.focus();
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeDrawer.current();
+      if (event.key === "Tab") { const items = controls(); const first = items[0]; const last = items[items.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
+    };
+    document.addEventListener("keydown", key);
+    return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", key); previous?.focus(); };
+  }, [mobileOpen]);
   const [collapsed, setCollapsed] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const signOut = async () => { try { await clearDemoSession(); window.location.assign("/auth"); } catch { setSignOutError("Unable to sign out. Please try again."); } };
@@ -105,6 +122,8 @@ export function Sidebar({
                   return (
                     <Link
                       key={name}
+                      title={name}
+                      aria-label={name}
                       href={href}
                       className={cn(
                         "group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-muted transition-[background-color,color,padding] duration-200 hover:bg-elevated hover:text-ink",
@@ -142,7 +161,7 @@ export function Sidebar({
               </div>
               <div className={collapsed ? "hidden" : "min-w-0"}>
                 <div className="truncate text-sm font-medium">{user?.name ?? "Account"}</div>
-                <div className="text-[11px] text-muted">Demo account</div>
+                <div className="text-[11px] text-muted">{user?.isDemo ? "Demo account" : "Workspace member"}</div>
               </div>
             </div>
             <button type="button" onClick={signOut} title="Sign out" className={cn("mt-3 w-full rounded-xl border border-border bg-white px-3 py-2 text-left text-xs font-medium text-muted transition hover:border-danger/30 hover:text-danger", collapsed && "px-0 text-center")}>{collapsed ? "↪" : "Sign out"}</button>
@@ -153,7 +172,7 @@ export function Sidebar({
       {mobileVisible ? (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button aria-label="Close navigation overlay" className="absolute inset-0 bg-slate-950/45" onClick={onClose} />
-          <aside className="absolute left-0 top-0 flex h-full w-[84vw] max-w-[320px] flex-col overflow-hidden bg-white px-3 py-4 text-ink shadow-[0_24px_80px_rgba(55,52,44,.18)]">
+          <aside ref={drawer} role="dialog" aria-modal="true" aria-label="Navigation" className="absolute left-0 top-0 flex h-full w-[84vw] max-w-[320px] flex-col overflow-hidden bg-white px-3 py-4 text-ink shadow-[0_24px_80px_rgba(55,52,44,.18)]">
             <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl px-3 py-2">
               <Link href="/dashboard" className="flex items-center gap-3">
                 <span className="grid size-10 place-items-center rounded-2xl bg-primary text-sm font-semibold text-white shadow-[0_8px_20px_rgba(95,111,82,.20)]">
@@ -179,6 +198,8 @@ export function Sidebar({
                       return (
                         <Link
                           key={name}
+                      title={name}
+                      aria-label={name}
                           href={href}
                           onClick={onClose}
                           className={cn(
@@ -216,7 +237,7 @@ export function Sidebar({
                   </div>
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{user?.name ?? "Account"}</div>
-                <div className="text-[11px] text-muted">Demo account</div>
+                <div className="text-[11px] text-muted">{user?.isDemo ? "Demo account" : "Workspace member"}</div>
                   </div>
                 </div>
                 <button type="button" onClick={signOut} className="mt-3 w-full rounded-xl border border-border bg-white px-3 py-2 text-left text-xs font-medium text-muted hover:text-ink">Sign out</button>

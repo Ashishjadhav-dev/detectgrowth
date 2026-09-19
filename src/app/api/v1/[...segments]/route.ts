@@ -17,6 +17,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ segment
     db.workspaces ??= {};
     const workspace = db.workspaces[user.id] ??= structuredClone({ companies: demoCompanies, people: demoPeople, signals: demoSignals, opportunities: demoOpportunities, lists: demoLists, integrations: demoIntegrations, dashboard: demoDashboard, icp: { industries: "SaaS, E-commerce", locations: "India", employeeSize: "51-200", revenue: "", signals: {} } });
     const ok = (data: unknown) => NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } });
+    workspace.bookmarks ??= [];
     const fail = (message: string, status = 400) => NextResponse.json({ error: { message } }, { status });
     if (segments[0] === "settings" && segments[1] === "preferences") {
       if (method === "PATCH") workspace.preferences = { ...(workspace.preferences as object ?? {}), ...input };
@@ -26,9 +27,23 @@ async function handle(request: NextRequest, context: { params: Promise<{ segment
       if (method === "PATCH") workspace.icp = input;
       return ok(workspace.icp);
     }
-    if (segments[0] === "research") return ok(demoResearch(request.nextUrl.searchParams.get("q") ?? ""));
+    if (segments[0] === "research") {
+      const query = (request.nextUrl.searchParams.get("q") ?? "").trim().toLowerCase();
+      const company = (workspace.companies as Row[]).find((row) => String(row.name).toLowerCase().includes(query));
+      if (!query || !company) return fail("No matching company found. Try another company name.", 404);
+      const evidence = (workspace.signals as Row[]).filter((row) => row.company === company.name).map((row) => ({ ...row, title: row.type, detectedAt: new Date().toISOString(), sourceUrl: row.sourceUrl ?? "" }));
+      return ok({ company, evidence, generatedAt: new Date().toISOString() });
+    }
     if (segments[0] === "dashboard") {
       const dashboard = workspace.dashboard as Record<string, unknown>;
+      const opportunities = workspace.opportunities as Row[];
+      const signals = workspace.signals as Row[];
+      const companies = workspace.companies as Row[];
+      const people = workspace.people as Row[];
+      dashboard.opportunities = opportunities.map((row) => ({ ...row, signal: "Account activity" }));
+      dashboard.signals = signals;
+      dashboard.summary = { newOpportunities: String(opportunities.length), companiesSurging: String(companies.length), newSignals: String(signals.length), peopleDiscovered: String(people.length), pipelineValue: new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(opportunities.reduce((total, row) => total + Number(row.expectedValue ?? 0), 0)), averageGrowthScore: String(opportunities.length ? Math.round(opportunities.reduce((total, row) => total + Number(row.score ?? 0), 0) / opportunities.length) : 0), growthDelta: "—" };
+      dashboard.pipeline = ["New", "Discovery", "Qualified", "Proposal", "Won", "Lost"].map((stage) => ({ title: stage, count: String(opportunities.filter((row) => row.stage === stage).length), value: `$${opportunities.filter((row) => row.stage === stage).reduce((sum, row) => sum + Number(row.expectedValue ?? 0), 0).toLocaleString()}` }));
       if (method === "PATCH" && segments[1] === "tasks") {
         const task = (dashboard.tasks as Row[]).find((item) => item.id === segments[2]);
         if (!task) return fail("Task not found.", 404);
@@ -40,6 +55,10 @@ async function handle(request: NextRequest, context: { params: Promise<{ segment
     const collection = workspace[segments[0]];
     if (!Array.isArray(collection)) return fail("Not found.", 404);
     const rows = collection as Row[];
+    if (method === "PATCH" || method === "POST") {
+      for (const field of ["score", "confidence"]) if (input[field] !== undefined && (!Number.isFinite(input[field]) || input[field] < 0 || input[field] > 100)) return fail(`${field} must be between 0 and 100.`);
+      if (input.expectedValue !== undefined && (!Number.isFinite(input.expectedValue) || input.expectedValue < 0)) return fail("Expected value must be a positive number or zero.");
+    }
     const key = segments[0] === "integrations" ? "provider" : "id";
     const index = rows.findIndex((row) => row[key] === segments[1]);
     if (method === "GET") {
@@ -52,7 +71,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ segment
       const company = (workspace.companies as Row[]).find((item) => item.id === input.companyId);
       const row: Row = { ...input, id: crypto.randomUUID(), updated: "Today", createdAt: new Date().toISOString() };
       if (segments[0] === "lists") { if (!String(input.name ?? "").trim()) return fail("List name is required."); row.count = 0; }
-      if (segments[0] === "opportunities") Object.assign(row, { company: company?.name ?? input.company ?? "New account", industry: company?.industry ?? "Other", location: company?.location ?? "", employees: company?.employeeRange ?? "—", score: Number(input.score ?? 50), stage: input.stage ?? "New", signals: [] });
+      if (segments[0] === "opportunities") Object.assign(row, { company: company?.name ?? input.company ?? "New account", industry: company?.industry ?? input.industry ?? "Other", location: company?.location ?? "", employees: company?.employeeRange ?? "—", score: Number(input.score ?? 50), stage: input.stage ?? "New", signals: [] });
       if (segments[0] === "signals") Object.assign(row, { type: input.title ?? input.type, company: company?.name ?? input.company ?? "Workspace", time: "Just now", confidence: input.confidence ?? 80, impact: input.impact ?? "Medium", description: input.description ?? "" });
       rows.unshift(row);
       return ok(row);
