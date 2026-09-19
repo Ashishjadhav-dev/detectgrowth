@@ -40,6 +40,12 @@ function TrendChart({ range }: { range: DateRange }) {
   // The chart points are static for each selected range, so resetting on range is intentional.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setActivePoint(chart.points[chart.points.length - 1]); }, [range]);
+  const handleChartMove = (event: React.PointerEvent<SVGRectElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const chartX = Math.min(640, Math.max(0, ((event.clientX - bounds.left) / bounds.width) * 640));
+    const nearestPoint = chart.points.reduce((nearest, point) => Math.abs(point.x - chartX) < Math.abs(nearest.x - chartX) ? point : nearest, chart.points[0]);
+    setActivePoint(nearestPoint);
+  };
   return (
     <div className="relative h-52 w-full overflow-hidden rounded-2xl bg-[linear-gradient(180deg,rgba(91,53,230,.09),rgba(91,53,230,0))] px-2 pt-4 sm:h-60 sm:px-4">
       <div className="pointer-events-none absolute inset-x-3 top-4 bottom-8 flex flex-col justify-between sm:inset-x-4">
@@ -59,9 +65,11 @@ function TrendChart({ range }: { range: DateRange }) {
         </defs>
         <path d={chart.area} fill="url(#growth-fill)" />
         <path d={chart.line} fill="none" stroke="#5b35e6" strokeLinecap="round" strokeWidth="3" />
+        <rect x="0" y="0" width="640" height="190" fill="transparent" aria-label="Explore growth score trend" onPointerMove={handleChartMove} onPointerLeave={() => setActivePoint(null)} />
+        {activePoint ? <line x1={activePoint.x} x2={activePoint.x} y1="10" y2="190" stroke="#5b35e6" strokeDasharray="4 5" strokeOpacity=".28" className="transition-all duration-150" /> : null}
         {chart.points.map((point) => <g key={`${point.x}-${point.y}`}><circle cx={point.x} cy={point.y} r="14" fill="transparent" tabIndex={0} aria-label={`${point.score} growth score on ${chart.labels[Math.round((point.x / 640) * (chart.labels.length - 1))]}`} onMouseEnter={() => setActivePoint(point)} onFocus={() => setActivePoint(point)} onBlur={() => setActivePoint(null)} onMouseLeave={() => setActivePoint(null)} /><circle cx={point.x} cy={point.y} r={activePoint?.x === point.x ? 6 : 4} fill="#fff" stroke="#5b35e6" strokeWidth={activePoint?.x === point.x ? 3 : 2} className="transition-all duration-150" /></g>)}
       </svg>
-      {activePoint ? <div className="pointer-events-none absolute z-10 min-w-[150px] -translate-x-1/2 -translate-y-[115%] rounded-xl border border-border bg-white px-3 py-2 shadow-[0_12px_30px_rgba(23,27,43,.16)]" style={{ left: `${Math.min(88, Math.max(12, (activePoint.x / 640) * 100))}%`, top: `${Math.max(22, 10 + (activePoint.y / 190) * 72)}%` }}><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-subtle">{chart.labels[Math.round((activePoint.x / 640) * (chart.labels.length - 1))]}</div><div className="mt-1 flex items-baseline justify-between gap-3"><span className="text-lg font-semibold text-ink">{activePoint.score}</span><span className="text-xs font-medium text-success">{activePoint.change}</span></div><div className="mt-1 text-[11px] text-muted">{activePoint.signals} signals detected</div></div> : null}
+      {activePoint ? <div className="pointer-events-none absolute z-10 min-w-[150px] -translate-x-1/2 -translate-y-[115%] rounded-xl border border-border bg-white px-3 py-2 shadow-[0_12px_30px_rgba(23,27,43,.16)] transition-[left,top] duration-100 ease-out" style={{ left: `${Math.min(88, Math.max(12, 10 + (activePoint.x / 640) * 80))}%`, top: `${Math.max(22, 10 + (activePoint.y / 190) * 72)}%` }}><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-subtle">{chart.labels[Math.round((activePoint.x / 640) * (chart.labels.length - 1))]}</div><div className="mt-1 flex items-baseline justify-between gap-3"><span className="text-lg font-semibold text-ink">{activePoint.score}</span><span className="text-xs font-medium text-success">{activePoint.change}</span></div><div className="mt-1 text-[11px] text-muted">{activePoint.signals} signals detected</div></div> : null}
       <div className="absolute inset-x-10 bottom-2 flex justify-between text-[10px] text-subtle sm:inset-x-14">{chart.labels.map((label) => <span key={label}>{label}</span>)}</div>
     </div>
   );
