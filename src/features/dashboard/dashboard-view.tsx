@@ -1,19 +1,18 @@
 "use client";
+
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowUpRight,
   Bell,
   CalendarDays,
+  Check,
   CheckCircle2,
   ChevronRight,
-  CircleEllipsis,
-  Compass,
-  FileText,
-  Flame,
-  FolderHeart,
-  Rocket,
-  ShieldAlert,
-  Sparkles,
+  CircleAlert,
+  CircleDollarSign,
+  Clock3,
+  RefreshCw,
   Target,
   TrendingUp,
   Users,
@@ -24,417 +23,139 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Score } from "@/components/ui/score";
 import { getDashboardData, updateDashboardTask, type DashboardData } from "@/lib/api/dashboard";
-import {
-  AvatarStack,
-  DonutChart,
-  MetricCard,
-  PreviewCard,
-  SectionHeader,
-  SmallStat,
-  SummaryPill,
-} from "@/components/ui/patterns";
 import { demoDashboard } from "@/data/demo";
 
-const moduleCards = [
-  {
-    eyebrow: "01. Authentication",
-    title: "Login, SSO, 2FA, recovery",
-    description: "Production-grade auth states with session expiry, invite flows, locked accounts, and workspace handoff.",
-    bullets: ["Forgot password and reset-password states", "SSO providers: Google, Microsoft, Okta", "Clean mobile-first forms and error handling"],
-    footer: "Ready for auth and onboarding screens",
-  },
-  {
-    eyebrow: "02. Onboarding",
-    title: "Role, goals, ICP, sources",
-    description: "Guided setup for role selection, goals, signals, integrations, and import steps.",
-    bullets: ["Step progress with continuation states", "Data-source connection and import surfaces", "Success state that routes to dashboard"],
-    footer: "Matches the onboarding wireframes",
-  },
-  {
-    eyebrow: "03. Discovery",
-    title: "Search and results workflow",
-    description: "Search by company or person with filters, saved views, bulk actions, and rich result rows.",
-    bullets: ["Table and card result modes", "Filter drawer, chips, and query summary", "Company and person discovery variants"],
-    footer: "Consistent with discover/search layouts",
-  },
-  {
-    eyebrow: "04. Company 360",
-    title: "Company overview and signals",
-    description: "A single account workspace with growth history, signals, people, notes, and recommended actions.",
-    bullets: ["Tab-based overview, signals, people, and notes", "Growth charts and signal evidence", "Decision-maker and fit panels"],
-    footer: "Built for the 360 detail experience",
-  },
-  {
-    eyebrow: "05. People 360",
-    title: "Decision maker profiles",
-    description: "Contact intelligence with role, engagement, and outreach actions.",
-    bullets: ["Engagement, activity, and contact details", "Meeting scheduler and next-step widgets", "Signals associated with the person"],
-    footer: "Matches the person detail wireframe",
-  },
-  {
-    eyebrow: "06. Workflows",
-    title: "Automation and execution",
-    description: "Workflow listing, builder nodes, validation, publishing, and run history.",
-    bullets: ["Canvas-style builder preview", "Execution history and branching", "Version and test states"],
-    footer: "Ready for a more detailed automation surface",
-  },
-];
+function TrendChart() {
+  return (
+    <div className="relative h-52 w-full overflow-hidden rounded-2xl bg-[linear-gradient(180deg,rgba(91,53,230,.09),rgba(91,53,230,0))] px-2 pt-4 sm:h-60 sm:px-4">
+      <div className="pointer-events-none absolute inset-x-3 top-4 bottom-8 flex flex-col justify-between sm:inset-x-4">
+        {["100", "75", "50", "25", "0"].map((label) => (
+          <div key={label} className="flex items-center gap-2 text-[10px] text-subtle">
+            <span className="w-6 text-right">{label}</span>
+            <span className="h-px flex-1 border-t border-dashed border-border" />
+          </div>
+        ))}
+      </div>
+      <svg viewBox="0 0 640 190" preserveAspectRatio="none" className="absolute inset-x-9 top-4 h-[calc(100%-44px)] w-[calc(100%-52px)] sm:inset-x-12 sm:w-[calc(100%-64px)]" aria-label="Growth score trend chart" role="img">
+        <defs>
+          <linearGradient id="growth-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="#5b35e6" stopOpacity=".25" />
+            <stop offset="1" stopColor="#5b35e6" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d="M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38 L640 190 L0 190 Z" fill="url(#growth-fill)" />
+        <path d="M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38" fill="none" stroke="#5b35e6" strokeLinecap="round" strokeWidth="3" />
+        <circle cx="640" cy="38" r="5" fill="#fff" stroke="#5b35e6" strokeWidth="3" />
+      </svg>
+      <div className="absolute inset-x-10 bottom-2 flex justify-between text-[10px] text-subtle sm:inset-x-14"><span>Jun 01</span><span>Jun 08</span><span>Jun 15</span><span>Jun 22</span><span>Today</span></div>
+    </div>
+  );
+}
+
+function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; value: string; delta: string; icon: React.ReactNode; tone?: "primary" | "green" | "blue" | "amber" }) {
+  const tones = { primary: "bg-primary-soft text-primary", green: "bg-emerald-50 text-success", blue: "bg-blue-50 text-info", amber: "bg-amber-50 text-warning" };
+  return (
+    <Card className="glass-card min-w-0 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-xs font-medium text-muted">{label}</div>
+          <div className="mt-2 truncate text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{value}</div>
+          <div className="mt-1 flex items-center gap-1 text-xs font-medium text-success"><TrendingUp className="size-3" />{delta}</div>
+        </div>
+        <div className={`grid size-9 shrink-0 place-items-center rounded-xl ${tones[tone]}`}>{icon}</div>
+      </div>
+    </Card>
+  );
+}
 
 export function DashboardView() {
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData>(demoDashboard);
+  const [dashboardError, setDashboardError] = useState<string | null>("Showing demo data until the API is connected.");
+  const [loading, setLoading] = useState(false);
+  const [completedTasks, setCompletedTasks] = useState<string[]>(demoDashboard.tasks.filter((task) => task.completed).map((task) => task.id));
+
+  const loadDashboard = () => {
+    setLoading(true);
+    getDashboardData()
+      .then((data) => { setDashboard(data); setDashboardError(null); })
+      .catch(() => { setDashboard(demoDashboard); setDashboardError("Showing demo data until the API is connected."); })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     let cancelled = false;
-    const loadDashboard = () => {
-      getDashboardData()
-        .then((data) => {
-          if (!cancelled) {
-            setDashboard(data);
-            setDashboardError(null);
-          }
-        })
-        .catch((error: Error) => {
-          if (!cancelled) { setDashboard(demoDashboard); setDashboardError("Showing demo data while the API is unavailable."); }
-        });
-    };
-    loadDashboard();
-    const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(/\/$/, "");
-    const events = new EventSource(`${apiBase}/api/v1/events`, { withCredentials: true });
-    events.addEventListener("dashboard", loadDashboard);
-    const refreshTimer = window.setInterval(loadDashboard, 30_000);
-    return () => {
-      cancelled = true;
-      events.close();
-      window.clearInterval(refreshTimer);
-    };
+    getDashboardData().then((data) => { if (!cancelled) { setDashboard(data); setDashboardError(null); } }).catch(() => { if (!cancelled) { setDashboard(demoDashboard); setDashboardError("Showing demo data until the API is connected."); } });
+    const refreshTimer = window.setInterval(() => { if (!cancelled) loadDashboard(); }, 30_000);
+    return () => { cancelled = true; window.clearInterval(refreshTimer); };
   }, []);
 
-  const dashboardSummary = dashboard?.summary;
-  const metricDelta = dashboardSummary?.growthDelta ?? "—";
-  const visibleInsights = dashboard?.insights ?? [];
-  const visibleTasks = dashboard?.tasks ?? [];
-  const visibleActivity = dashboard?.activity ?? [];
-  const visibleSignals = dashboard?.signals ?? [];
-  const visibleOpportunities = dashboard?.opportunities ?? [];
-  const visibleWatchlist = dashboard?.watchlist ?? [];
-  const visiblePipeline = dashboard?.pipeline ?? [];
-  const visibleTrending = dashboard?.trending ?? [];
+  const summary = dashboard.summary;
+  const completedCount = completedTasks.length;
+  const openTasks = useMemo(() => dashboard.tasks.filter((task) => !completedTasks.includes(task.id)), [completedTasks, dashboard.tasks]);
+
+  const toggleTask = (id: string, checked: boolean) => {
+    setCompletedTasks((current) => checked ? [...new Set([...current, id])] : current.filter((taskId) => taskId !== id));
+    if (!id.startsWith("demo-")) void updateDashboardTask(id, checked);
+  };
 
   return (
-    <div className="space-y-6">
-      {dashboardError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Dashboard API unavailable. Start the Go API and try again.</div> : null}
-      <section className="grid gap-4 xl:grid-cols-[1.35fr_.95fr]">
-        <Card className="glass-card overflow-hidden p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Home Dashboard</div>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">Your growth command center</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                A wireframe-faithful overview of opportunities, signals, tasks, pipeline, and the product modules underneath.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm">
-                <CalendarDays className="size-4" />
-                Last 30 days
-              </Button>
-              <Button size="sm">
-                <Sparkles className="size-4" />
-                Create report
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label="New opportunities" value={dashboardSummary?.newOpportunities ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<Rocket className="size-4" />} />
-            <MetricCard label="Companies surging" value={dashboardSummary?.companiesSurging ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<TrendingUp className="size-4" />} />
-            <MetricCard label="New signals" value={dashboardSummary?.newSignals ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<Zap className="size-4" />} />
-            <MetricCard label="People discovered" value={dashboardSummary?.peopleDiscovered ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<Users className="size-4" />} />
-            <MetricCard label="Pipeline value" value={dashboardSummary?.pipelineValue ?? "—"} delta={metricDelta} note="vs last 7 days" icon={<Target className="size-4" />} />
-          </div>
-        </Card>
-
-        <Card className="glass-card p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Today&apos;s insights</div>
-              <h2 className="mt-2 text-lg font-semibold text-ink">What changed since yesterday</h2>
-            </div>
-            <Bell className="size-5 text-subtle" />
-          </div>
-          <div className="mt-4 space-y-3">
-            {visibleInsights.map((item, index) => (
-              <div key={item.text} className="flex gap-3 rounded-2xl border border-border bg-white p-3">
-                <div className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
-                  {index === 0 ? <Flame className="size-4" /> : index === 1 ? <Compass className="size-4" /> : <ShieldAlert className="size-4" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-ink">{item.text}</div>
-                  <div className="mt-1 text-xs text-muted">{item.age}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <Button variant="ghost" className="mt-3 w-full justify-between">
-            View all insights
-            <ChevronRight className="size-4" />
-          </Button>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.3fr_.9fr_.8fr]">
-        <Card className="glass-card p-5">
-          <SectionHeader title="Growth score trend" description="Average growth score of tracked companies" />
-          <div className="rounded-2xl border border-border bg-white p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-medium text-muted">Average growth score</div>
-              <Button variant="secondary" size="sm">
-                Last 30 days
-              </Button>
-            </div>
-            <div className="mt-3 h-64 rounded-2xl bg-[linear-gradient(180deg,rgba(91,53,230,.06),rgba(91,53,230,0))] p-4">
-              <div className="flex h-full flex-col justify-between">
-                <div className="space-y-2">
-                <div className="text-4xl font-semibold tracking-tight text-ink">{dashboardSummary?.averageGrowthScore ?? "—"}</div>
-                  <div className="flex items-center gap-2 text-sm text-success">
-                    <TrendingUp className="size-4" />
-                    {dashboardSummary?.growthDelta ?? "—"} this month
-                  </div>
-                </div>
-                <div className="flex items-end justify-between gap-4">
-                  <div className="max-w-xl flex-1 text-primary">
-                    <div className="grid h-28 place-items-center rounded-xl border border-dashed border-border text-center text-xs text-muted">No historical score data yet.<br />The API will populate this after scores are recorded over time.</div>
-                  </div>
-                  <div className="w-40 space-y-2">
-                    <SummaryPill label="Top signal" value={visibleSignals[0]?.type ?? "—"} tone="success" />
-                    <SummaryPill label="Momentum" value={metricDelta} tone="info" />
-                    <SummaryPill label="Confidence" value={visibleSignals[0] ? `${visibleSignals[0].confidence}%` : "—"} tone="warning" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="glass-card p-5">
-          <SectionHeader title="Top signals" description="Recent buying intent and business change" />
-          <div className="space-y-2">
-            {visibleSignals.map((signal) => (
-              <div key={signal.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
-                <div className="grid size-9 place-items-center rounded-xl bg-primary-soft text-primary">
-                  <Zap className="size-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink">{signal.type}</div>
-                  <div className="truncate text-xs text-muted">{signal.company}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-ink">{signal.confidence}%</div>
-                  <div className="text-xs text-success">{signal.impact} impact</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <Button variant="ghost" className="mt-3 w-full justify-between">
-            View all signals
-            <ChevronRight className="size-4" />
-          </Button>
-        </Card>
-
-        <Card className="glass-card p-5">
-          <SectionHeader title="My tasks" description="Follow-ups and reviews for today" />
-          <div className="space-y-2">
-            {visibleTasks.map((task) => (
-              <label key={task.label} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
-                <input
-                  type="checkbox"
-                  defaultChecked={task.completed}
-                  onChange={(event) => {
-                    if (!task.id.startsWith("preview-")) void updateDashboardTask(task.id, event.target.checked);
-                  }}
-                  className="size-4 rounded border-border text-primary"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink">{task.label}</div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-muted">
-                    <span>{task.urgency}</span>
-                    <span>•</span>
-                    <span>{task.due}</span>
-                  </div>
-                </div>
-              </label>
-            ))}
-          </div>
-          <Button variant="ghost" className="mt-3 w-full justify-between">
-            View all tasks
-            <ChevronRight className="size-4" />
-          </Button>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_.85fr_.95fr]">
-        <Card className="glass-card p-5">
-          <SectionHeader title="Top opportunities" description="Companies with the strongest fit and signals" action={<Link className="text-sm font-medium text-primary" href="/discover">View all</Link>} />
-          <div className="overflow-hidden rounded-2xl border border-border bg-white">
-            <table className="w-full min-w-[700px] border-collapse">
-              <thead className="bg-elevated text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-subtle">
-                <tr>
-                  <th className="table-cell">Company</th>
-                  <th className="table-cell">Score</th>
-                  <th className="table-cell">Employees</th>
-                  <th className="table-cell">Primary signal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleOpportunities.map((opportunity) => (
-                  <tr key={opportunity.id} className="border-t border-border/80 transition hover:bg-elevated/60">
-                    <td className="table-cell">
-                      <div className="flex items-center gap-3">
-                        <div className="grid size-9 place-items-center rounded-xl bg-primary-soft text-xs font-semibold text-primary">
-                          {opportunity.company.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-medium text-ink">{opportunity.company}</div>
-                          <div className="text-xs text-muted">{opportunity.industry}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="table-cell">
-                      <Score value={opportunity.score} compact />
-                    </td>
-                    <td className="table-cell text-muted">{opportunity.employees}</td>
-                    <td className="table-cell text-muted">{opportunity.signal}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        <Card className="glass-card p-5">
-          <SectionHeader title="Watchlist updates" description="AI startup accounts you are tracking" action={<Link className="text-sm font-medium text-primary" href="/lists">View watchlist</Link>} />
-          <div className="space-y-3">
-            {visibleWatchlist.map((item) => (
-              <div key={item.name} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
-                <AvatarStack names={[item.name, "Growth Team"]} />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink">{item.name}</div>
-                  <div className="text-xs text-muted">Growth score trend</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-ink">{item.score}</div>
-                  <div className="text-xs font-medium text-success">{item.delta}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="glass-card p-5">
-          <SectionHeader title="Pipeline overview" description="Projected pipeline in the current cycle" action={<Link className="text-sm font-medium text-primary" href="/opportunities">View pipeline</Link>} />
-          <DonutChart value={dashboardSummary?.pipelineValue ?? "—"} label="Total" sublabel="Pipeline value by stage and owner" segments={visiblePipeline.map((column, index) => ({ label: column.title, value: Number.parseInt(column.count, 10) || 0, color: ["#5b35e6", "#7c5cff", "#2f6fed", "#18a66b", "#f59e0b"][index % 5] }))} />
-          <div className="mt-5 grid gap-2">
-            {visiblePipeline.map((column) => (
-              <div key={column.title} className="flex items-center justify-between rounded-2xl border border-border bg-white px-3 py-2.5">
-                <div>
-                  <div className="text-sm font-medium text-ink">{column.title}</div>
-                  <div className="text-xs text-muted">{column.count} opportunities</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-ink">{column.value}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_.9fr]">
-        <Card className="glass-card p-5">
-          <SectionHeader title="Trending companies" description="Signals are clustering around these accounts" action={<Link className="text-sm font-medium text-primary" href="/discover">View all</Link>} />
-          <div className="space-y-2">
-            {visibleTrending.map((item) => (
-              <div key={item.name} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3">
-                <div className="grid size-8 place-items-center rounded-xl bg-primary-soft text-xs font-semibold text-primary">
-                  {item.name.slice(0, 2)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-ink">{item.name}</div>
-                  <div className="text-xs text-muted">Signal strength and momentum</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-ink">{item.score}</div>
-                  <div className="text-xs text-success">{item.delta}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="glass-card p-5">
-          <SectionHeader title="Recent activity" description="Collaborator updates and system events" />
-          <div className="space-y-3">
-            {visibleActivity.map((item, index) => (
-              <div key={item.text} className="flex items-start gap-3 rounded-2xl border border-border bg-white p-3">
-                <div className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
-                  {index === 0 ? <FolderHeart className="size-4" /> : index === 1 ? <CheckCircle2 className="size-4" /> : index === 2 ? <FileText className="size-4" /> : <CircleEllipsis className="size-4" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-ink">{item.text}</div>
-                  <div className="mt-1 text-xs text-muted">{item.age}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </section>
-
-      <section className="space-y-4">
-        <SectionHeader
-          title="Product surface map"
-          description="The wireframe becomes clearer when the supporting modules share a single visual language."
-        />
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {moduleCards.map((card) => (
-            <PreviewCard key={card.eyebrow} {...card} />
-          ))}
+    <div className="min-w-0 space-y-5 pb-8">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Growth overview</div>
+          <h1 className="page-title mt-2">Good morning, Ashish</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">A clear view of the accounts, signals, and follow-ups that need your attention today.</p>
+        </div>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <Button variant="secondary" size="sm"><CalendarDays className="size-4" />Last 30 days</Button>
+          <Button variant="secondary" size="sm" onClick={loadDashboard} disabled={loading}><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.2fr_.9fr]">
-        <Card className="glass-card p-5">
-          <SectionHeader title="Board states" description="Design system coverage that should exist in every major module" />
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <SmallStat label="Loading" value="Ready" change="Skeletons defined" />
-            <SmallStat label="Empty" value="Ready" change="No-results states" />
-            <SmallStat label="Error" value="Ready" change="Inline and page errors" />
-            <SmallStat label="Permission" value="Ready" change="RBAC states included" />
+      {dashboardError ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800"><CircleAlert className="size-4 shrink-0" />{dashboardError}</div> : null}
+
+      <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <Kpi label="New opportunities" value={summary.newOpportunities} delta={`${summary.growthDelta} vs last period`} icon={<Target className="size-4" />} />
+        <Kpi label="Companies surging" value={summary.companiesSurging} delta="8% above average" icon={<TrendingUp className="size-4" />} tone="green" />
+        <Kpi label="New signals" value={summary.newSignals} delta="12 high priority" icon={<Zap className="size-4" />} tone="amber" />
+        <Kpi label="People discovered" value={summary.peopleDiscovered} delta="23 new this week" icon={<Users className="size-4" />} tone="blue" />
+        <Kpi label="Pipeline value" value={summary.pipelineValue} delta="18% this month" icon={<CircleDollarSign className="size-4" />} tone="green" />
+      </section>
+
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,.85fr)]">
+        <Card className="glass-card min-w-0 p-5">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div><h2 className="section-title">Growth score trend</h2><p className="mt-1 text-sm text-muted">Average score across tracked companies</p></div>
+            <div className="text-right"><div className="text-2xl font-semibold text-ink">{summary.averageGrowthScore}</div><div className="text-xs font-medium text-success">{summary.growthDelta} this month</div></div>
           </div>
+          <TrendChart />
+          <div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Top signal</div><div className="mt-1 truncate text-sm font-semibold text-ink">{dashboard.signals[0]?.type ?? "—"}</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Confidence</div><div className="mt-1 text-sm font-semibold text-ink">{dashboard.signals[0]?.confidence ?? 0}%</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Active accounts</div><div className="mt-1 text-sm font-semibold text-ink">{summary.companiesSurging}</div></div></div>
         </Card>
 
-        <Card className="glass-card p-5">
-          <SectionHeader title="Strong defaults" description="The shell now supports the main wireframe patterns without custom one-off UI." />
-          <div className="grid gap-2">
-            {[
-              "Global search and command palette entry point",
-              "Dark sidebar with grouped navigation",
-              "Metrics, charts, tables, and actionable cards",
-              "Auth/onboarding routes can render without the shell",
-            ].map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3 text-sm text-ink">
-                <CheckCircle2 className="size-4 text-success" />
-                <span>{item}</span>
-              </div>
-            ))}
+        <Card className="glass-card min-w-0 p-5">
+          <div className="flex items-start justify-between gap-3"><div><h2 className="section-title">My priorities</h2><p className="mt-1 text-sm text-muted">Follow-ups for today</p></div><Badge className="bg-primary-soft text-primary">{openTasks.length} open</Badge></div>
+          <div className="mt-4 space-y-2.5">
+            {dashboard.tasks.map((task) => <label key={task.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${completedTasks.includes(task.id) ? "border-emerald-100 bg-emerald-50/50" : "border-border bg-white hover:border-primary/30"}`}><input type="checkbox" checked={completedTasks.includes(task.id)} onChange={(event) => toggleTask(task.id, event.target.checked)} className="mt-0.5 size-4 rounded border-border text-primary" /><span className="min-w-0 flex-1"><span className={`block text-sm font-medium ${completedTasks.includes(task.id) ? "text-muted line-through" : "text-ink"}`}>{task.label}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-muted"><Clock3 className="size-3" />{task.due}<span>·</span>{task.urgency} priority</span></span>{completedTasks.includes(task.id) ? <Check className="size-4 shrink-0 text-success" /> : null}</label>)}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Badge className="bg-emerald-50 text-success">Responsive</Badge>
-            <Badge className="bg-blue-50 text-info">Accessible</Badge>
-            <Badge className="bg-amber-50 text-warning">Composable</Badge>
-            <Badge className="bg-primary-soft text-primary">Wireframe-aligned</Badge>
-          </div>
+          <Link href="/lists" className="mt-4 flex items-center justify-between text-sm font-medium text-primary">View task list<ChevronRight className="size-4" /></Link>
         </Card>
+      </section>
+
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,.75fr)]">
+        <Card className="glass-card min-w-0 overflow-hidden p-5">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="section-title">Top opportunities</h2><p className="mt-1 text-sm text-muted">Accounts with the strongest combination of fit and intent</p></div><Link href="/opportunities" className="text-sm font-medium text-primary">View pipeline</Link></div>
+          <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full min-w-[620px] border-collapse"><thead className="bg-elevated text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle"><tr><th className="px-3 py-3">Company</th><th className="px-3 py-3">Score</th><th className="px-3 py-3">Stage</th><th className="px-3 py-3">Signal</th><th className="px-3 py-3" /></tr></thead><tbody>{dashboard.opportunities.slice(0, 5).map((opportunity) => <tr key={opportunity.id} className="border-t border-border hover:bg-elevated/50"><td className="px-3 py-3"><div className="flex items-center gap-2.5"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary-soft text-[11px] font-semibold text-primary">{opportunity.company.slice(0, 2).toUpperCase()}</div><div className="min-w-0"><div className="truncate text-sm font-medium text-ink">{opportunity.company}</div><div className="truncate text-xs text-muted">{opportunity.industry} · {opportunity.employees}</div></div></div></td><td className="px-3 py-3"><Score value={opportunity.score} compact /></td><td className="px-3 py-3"><Badge className="bg-primary-soft text-primary">Active</Badge></td><td className="max-w-[180px] truncate px-3 py-3 text-xs text-muted">{opportunity.signal}</td><td className="px-3 py-3"><Link href={`/opportunities/${opportunity.id}`} aria-label={`Open ${opportunity.company}`}><ArrowUpRight className="size-4 text-primary" /></Link></td></tr>)}</tbody></table></div>
+        </Card>
+
+        <Card className="glass-card min-w-0 p-5">
+          <div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Latest signals</h2><p className="mt-1 text-sm text-muted">What changed recently</p></div><Link href="/signals" className="text-sm font-medium text-primary">View all</Link></div>
+          <div className="space-y-2.5">{dashboard.signals.slice(0, 4).map((signal) => <Link href="/signals" key={signal.id} className="flex items-center gap-3 rounded-xl border border-border bg-white p-3 transition hover:border-primary/30"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary"><Zap className="size-4" /></div><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink">{signal.type}</div><div className="mt-1 truncate text-xs text-muted">{signal.company}</div></div><div className="shrink-0 text-right"><div className="text-sm font-semibold text-ink">{signal.confidence}%</div><div className="text-[10px] text-success">{signal.impact}</div></div></Link>)}</div>
+        </Card>
+      </section>
+
+      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
+        <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Pipeline health</h2><p className="mt-1 text-sm text-muted">Current opportunities by stage</p></div><Link href="/opportunities" aria-label="Open pipeline"><ChevronRight className="size-5 text-primary" /></Link></div><div className="space-y-4">{dashboard.pipeline.map((stage, index) => { const count = Number.parseInt(stage.count, 10) || 0; const max = Math.max(...dashboard.pipeline.map((item) => Number.parseInt(item.count, 10) || 0), 1); return <div key={stage.title}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="font-medium text-ink">{stage.title}</span><span className="text-muted">{stage.count} · {stage.value}</span></div><div className="h-2 overflow-hidden rounded-full bg-elevated"><div className={`h-full rounded-full ${["bg-primary", "bg-info", "bg-success", "bg-warning"][index % 4]}`} style={{ width: `${Math.max(10, (count / max) * 100)}%` }} /></div></div>; })}</div></Card>
+        <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Recent activity</h2><p className="mt-1 text-sm text-muted">Latest updates from your workspace</p></div><Bell className="size-5 text-subtle" /></div><div className="grid gap-2.5 sm:grid-cols-2">{dashboard.activity.slice(0, 4).map((item, index) => <div key={item.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-white p-3"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-elevated text-muted">{index === 0 ? <Zap className="size-4" /> : index === 1 ? <CheckCircle2 className="size-4" /> : <Users className="size-4" />}</div><div className="min-w-0"><div className="text-sm leading-5 text-ink">{item.text}</div><div className="mt-1 text-xs text-muted">{item.age}</div></div></div>)}</div></Card>
       </section>
     </div>
   );
