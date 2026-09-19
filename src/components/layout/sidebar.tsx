@@ -3,7 +3,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3,
   Bell,
   BriefcaseBusiness,
   Building2,
@@ -15,11 +14,9 @@ import {
   FileSearch,
   Gauge,
   List,
-  Mail,
   Radar,
   Settings,
   Users,
-  Workflow,
   Zap,
   X,
 } from "lucide-react";
@@ -51,14 +48,6 @@ const navGroups = [
       ["ICP Builder", "/icp", Database],
       ["Integrations", "/integrations", Building2],
       ["Settings", "/settings", Settings],
-    ],
-  },
-  {
-    label: "ENGAGE",
-    items: [
-      ["Sequences", "/dashboard#sequences", Mail],
-      ["Workflows", "/dashboard#workflows", Workflow],
-      ["Analytics", "/dashboard#analytics", BarChart3],
     ],
   },
 ] as const;
