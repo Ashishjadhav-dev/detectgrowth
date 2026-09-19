@@ -1,4 +1,5 @@
 "use client";
+import { useSession } from "@/components/auth/session-provider";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -90,6 +91,7 @@ function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; v
 }
 
 export function DashboardView() {
+  const user = useSession();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>("30");
@@ -130,7 +132,7 @@ export function DashboardView() {
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Growth overview</div>
-          <h1 className="page-title mt-2">Hi Demo User</h1>
+          <h1 className="page-title mt-2">Hi {user?.name ?? "there"}</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">A clear view of the accounts, signals, and follow-ups that need your attention today.</p>
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">

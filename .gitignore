@@ -6,6 +6,7 @@ out
 .DS_Store
 *.log
 *.tsbuildinfo
+.data/
 
 # Go backend
 backend/bin

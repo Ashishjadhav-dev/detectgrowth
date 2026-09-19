@@ -1,4 +1,5 @@
 "use client";
+import { useSession } from "@/components/auth/session-provider";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -59,11 +60,13 @@ export function Sidebar({
   mobileOpen: boolean;
   onClose: () => void;
 }) {
+  const user = useSession();
   const pathname = usePathname();
   const router = useRouter();
   const mobileVisible = mobileOpen;
   const [collapsed, setCollapsed] = useState(false);
-  const signOut = () => { clearDemoSession(); router.push("/auth"); };
+  const [signOutError, setSignOutError] = useState("");
+  const signOut = async () => { try { await clearDemoSession(); window.location.assign("/auth"); } catch { setSignOutError("Unable to sign out. Please try again."); } };
 
   useEffect(() => {
     setCollapsed(window.localStorage.getItem("detectgrowth-sidebar-collapsed") === "true");
@@ -77,6 +80,7 @@ export function Sidebar({
 
   return (
     <>
+      {signOutError ? <div role="alert" className="fixed bottom-4 right-4 z-[100] rounded-xl bg-white p-4 text-red-700 shadow-lg">{signOutError}</div> : null}
       <aside className={cn("sticky top-0 hidden h-screen shrink-0 flex-col overflow-hidden border-r border-border bg-white py-4 text-ink transition-[width,padding] duration-300 ease-out lg:flex", collapsed ? "w-[76px] px-2" : "w-[264px] px-3")}>
         <div className="relative mb-5">
         <Link href="/dashboard" className={cn("flex items-center gap-3 rounded-2xl py-2 transition-[padding] duration-300", collapsed ? "justify-center px-1" : "px-3")} aria-label="DetectGrowth home">
@@ -127,7 +131,7 @@ export function Sidebar({
           <div className={cn("rounded-2xl border border-border bg-elevated p-3 transition-[padding] duration-300", collapsed && "p-2")}>
             <div className="flex items-center justify-between gap-2">
               <div className={collapsed ? "hidden" : "block"}>
-                <div className="text-sm font-medium">Demo Workspace</div>
+                <div className="text-sm font-medium">{user?.workspace ?? "Workspace"}</div>
                 <div className="text-[11px] text-muted">Workspace active</div>
               </div>
               <Bell className={cn("size-4 text-subtle", collapsed && "mx-auto")} />
@@ -137,7 +141,7 @@ export function Sidebar({
                 <CircleUserRound className="size-5" />
               </div>
               <div className={collapsed ? "hidden" : "min-w-0"}>
-                <div className="truncate text-sm font-medium">Demo User</div>
+                <div className="truncate text-sm font-medium">{user?.name ?? "Account"}</div>
                 <div className="text-[11px] text-muted">Demo account</div>
               </div>
             </div>
@@ -201,7 +205,7 @@ export function Sidebar({
           <div className="rounded-2xl border border-border bg-elevated p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <div className="text-sm font-medium">Demo Workspace</div>
+                    <div className="text-sm font-medium">{user?.workspace ?? "Workspace"}</div>
                 <div className="text-[11px] text-muted">Workspace active</div>
                   </div>
               <Bell className="size-4 text-subtle" />
@@ -211,7 +215,7 @@ export function Sidebar({
                     <CircleUserRound className="size-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">Demo User</div>
+                    <div className="truncate text-sm font-medium">{user?.name ?? "Account"}</div>
                 <div className="text-[11px] text-muted">Demo account</div>
                   </div>
                 </div>
