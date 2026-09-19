@@ -11,7 +11,7 @@ export function getOpportunity(id: string) {
   return apiRequest<ApiOpportunity>(`/api/v1/opportunities/${encodeURIComponent(id)}`);
 }
 
-export function createOpportunity(input: { companyId?: string; stage?: string; status?: string; score?: number; priority?: string; expectedValue?: number; nextAction?: string }) {
+export function createOpportunity(input: { company?: string; companyId?: string; stage?: string; status?: string; score?: number; priority?: string; expectedValue?: number; nextAction?: string }) {
   return apiRequest<ApiOpportunity>("/api/v1/opportunities", { method: "POST", body: JSON.stringify(input) });
 }
 

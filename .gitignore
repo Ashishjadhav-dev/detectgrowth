@@ -1,11 +1,15 @@
 node_modules
 .next
+.next-verify/
 out
 .env*
 !.env.example
 .DS_Store
 *.log
 *.tsbuildinfo
+.data/
+test-results/
+playwright-report/
 
 # Go backend
 backend/bin

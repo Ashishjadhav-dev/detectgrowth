@@ -1,18 +1,20 @@
 "use client";
-
 import { useEffect, useState } from "react";
-import { CheckCircle2, Plug, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { listIntegrations, updateIntegration, type ApiIntegration } from "@/lib/api/integrations";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SectionHeader } from "@/components/ui/patterns";
-import { listIntegrations, type ApiIntegration } from "@/lib/api/integrations";
-import { demoIntegrations } from "@/data/demo";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
-
 export default function Page() {
-  const [integrations, setIntegrations] = useState<ApiIntegration[]>([]); const [loading, setLoading] = useState(true);
-  const load = () => { setLoading(true); return listIntegrations().then(setIntegrations).catch(() => { setIntegrations(demoIntegrations); }).finally(() => setLoading(false)); };
-  useEffect(() => { load(); }, []);
-  if (loading && !integrations.length) return <PageSkeleton variant="workspace" />;
-  return <div className="space-y-5"><div><h1 className="page-title">Integrations</h1><p className="mt-1 text-sm text-muted">Connect the data sources that power your growth workspace.</p></div><Card className="glass-card p-5"><SectionHeader title="Data sources" description="Manage connected sources and sync status." /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{integrations.map((integration) => { const active = integration.status === "connected"; return <div key={integration.provider} className="rounded-2xl border border-border bg-white p-4"><div className="flex items-center justify-between gap-3"><div className="grid size-10 place-items-center rounded-2xl bg-primary-soft text-primary"><Plug className="size-4" /></div><CheckCircle2 className={`size-4 ${active ? "text-success" : "text-subtle"}`} /></div><div className="mt-4 text-sm font-medium text-ink">{integration.name}</div><div className="mt-1 text-xs text-muted">{integration.description}</div><div className="mt-4 flex items-center justify-between gap-2"><span className={`rounded-full px-2 py-1 text-[11px] font-medium ${active ? "bg-emerald-50 text-success" : "bg-elevated text-muted"}`}>{integration.status.replace("_", " ")}</span>{integration.lastSyncedAt && <span className="text-[11px] text-muted">{new Date(integration.lastSyncedAt).toLocaleString()}</span>}</div></div>; })}</div><Button variant="secondary" className="mt-4" onClick={load} disabled={loading}><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />Refresh statuses</Button></Card></div>;
+  const [items, setItems] = useState<ApiIntegration[] | null>(null);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const load = async () => { setBusy("refresh"); setError(""); try { const [data] = await Promise.all([listIntegrations(), new Promise((resolve) => setTimeout(resolve, 650))]); setItems(data); } catch { setError("Unable to refresh sources. Please try again."); } finally { setBusy(""); } };
+  useEffect(() => { void load(); }, []);
+  if (!items && !error) return <PageSkeleton />;
+  return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="page-title">Integrations</h1><p className="mt-2 text-sm text-muted">Manage the data sources enabled in your workspace.</p></div><Button variant="secondary" disabled={Boolean(busy)} onClick={load}><RefreshCw className={busy === "refresh" ? "size-4 animate-spin" : "size-4"} />Refresh statuses</Button></div>
+    {error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{items?.map((item) => <Card key={item.provider} className="p-5"><h2 className="font-semibold">{item.name}</h2><p className="mt-2 text-sm text-muted">{item.description}</p><p className="mt-4 text-xs text-muted">Workspace status: {item.status}</p><Button className="mt-4" variant="secondary" disabled={Boolean(busy)} onClick={async () => { setBusy(item.provider); setError(""); const status = item.status === "connected" ? "disabled" : "connected"; try { await updateIntegration(item.provider, status); setItems((current) => current?.map((row) => row.provider === item.provider ? { ...row, status } : row) ?? []); } catch { setError("Unable to update this source. Please retry."); } finally { setBusy(""); } }}>{busy === item.provider ? "Saving…" : item.status === "connected" ? "Disable source" : "Enable source"}</Button></Card>)}</div>
+    {items?.length === 0 ? <Card className="p-8 text-center text-sm text-muted">No sources are configured for this workspace.</Card> : null}
+  </div>;
 }

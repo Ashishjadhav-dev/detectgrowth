@@ -1,95 +1,25 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { RecoveryCode } from "@/components/auth/recovery-code";
+import { apiRequest } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-
-const steps = [
-  "Role selection",
-  "Goals",
-  "ICP",
-  "Signals",
-  "Integrations",
-  "Import",
-  "Invite team",
-  "Done",
-];
-
 export default function Page() {
-  const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(0);
+  const [step, setStep] = useState(0);
   const [role, setRole] = useState("Sales");
-  const [selectedSignals, setSelectedSignals] = useState(["Hiring surge", "Funding rounds", "Website changes"]);
-  const step = steps[currentStep];
-  const advance = () => currentStep === steps.length - 1 ? router.push("/dashboard") : setCurrentStep((value) => value + 1);
-  return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(91,53,230,.1),transparent_30%),radial-gradient(circle_at_top_right,rgba(47,111,237,.08),transparent_25%),#f7f8fc] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <Card className="glass-card p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Onboarding</div>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">Set up your workspace</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                The setup flow should guide role, goals, ICP, signals, integrations, import, and invites in a clean progression.
-              </p>
-            </div>
-            <Button onClick={advance}>{currentStep === steps.length - 1 ? "Go to dashboard" : "Continue"}</Button>
-          </div>
-          <div className="mt-6 grid gap-3 md:grid-cols-4 xl:grid-cols-8">
-            {steps.map((step, index) => (
-              <div
-                key={step}
-                onClick={() => setCurrentStep(index)}
-                className={`cursor-pointer rounded-2xl border px-3 py-2 text-center text-sm transition hover:border-primary/40 ${
-                  index === currentStep ? "border-primary bg-primary-soft text-primary" : "border-border bg-white text-muted"
-                }`}
-              >
-                {step}
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Card className="glass-card p-5">
-            <div className="text-sm font-semibold text-ink">Role selection</div>
-            <div className="mt-4 space-y-2">
-              {["Sales", "Marketing", "Founder", "Recruiter"].map((item, index) => (
-                <label
-                  key={item}
-                  className={`flex items-center gap-3 rounded-2xl border px-3 py-3 text-sm ${
-                    index === 0 ? "border-primary bg-primary-soft text-primary" : "border-border bg-white text-muted"
-                  }`}
-                >
-                  <input type="radio" name="role" checked={role === item} onChange={() => setRole(item)} />
-                  {item}
-                </label>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="glass-card p-5">
-            <div className="text-sm font-semibold text-ink">Signals to monitor</div>
-            <div className="mt-4 space-y-2">
-              {["Hiring surge", "Funding rounds", "Website changes", "Technology changes", "New product launches"].map((item, index) => (
-                <label key={item} className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-white px-3 py-3 text-sm text-muted transition hover:border-primary/30">
-                  <input type="checkbox" checked={selectedSignals.includes(item)} onChange={(event) => setSelectedSignals((current) => event.target.checked ? [...current, item] : current.filter((signal) => signal !== item))} />
-                  {item}
-                </label>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="glass-card p-5">
-            <div className="text-sm font-semibold text-ink">Final state</div>
-            <div className="mt-4 rounded-3xl border border-dashed border-border bg-elevated p-5 text-sm leading-6 text-muted">
-              Finish your setup and move directly into the dashboard.
-            </div>
-            <Button className="mt-4 w-full" onClick={advance}>{currentStep === steps.length - 1 ? "Go to dashboard" : `Continue to ${steps[currentStep + 1]}`}</Button>
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
+  const [goal, setGoal] = useState("Find qualified accounts");
+  const [signals, setSignals] = useState(["Hiring", "Product launches"]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const finish = async (skip = false) => {
+    setBusy(true); setError("");
+    try { await apiRequest("/api/v1/settings/preferences", { method: "PATCH", body: JSON.stringify({ role, goal, signalTypes: signals, onboarded: !skip }) }); window.location.assign("/dashboard"); }
+    catch { setError("Unable to save setup. Please try again."); setBusy(false); }
+  };
+  return <main className="grid min-h-screen place-items-center bg-canvas p-4"><Card className="w-full max-w-xl p-6 sm:p-8"><p className="text-xs font-medium text-primary">Step {step + 1} of 3</p><h1 className="mt-3 text-2xl font-semibold">{["Your role", "Your primary goal", "Signals to follow"][step]}</h1><p className="mt-2 text-sm text-muted">Personalize your workspace. You can change your preferences later.</p>
+    <div className="mt-6 space-y-3">{step === 0 ? <label className="block text-sm">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-border bg-white px-3">{["Sales", "Marketing", "Founder", "Operations", "Research"].map((value) => <option key={value}>{value}</option>)}</select></label> : step === 1 ? <label className="block text-sm">Goal<select value={goal} onChange={(event) => setGoal(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-border bg-white px-3">{["Find qualified accounts", "Track company growth", "Build a contact list", "Research opportunities"].map((value) => <option key={value}>{value}</option>)}</select></label> : ["Hiring", "Product launches", "Funding", "Expansion", "Website changes"].map((value) => <label key={value} className="flex min-h-11 items-center gap-3 rounded-xl border border-border p-3 text-sm"><input type="checkbox" checked={signals.includes(value)} onChange={(event) => setSignals((current) => event.target.checked ? [...current, value] : current.filter((item) => item !== value))} />{value}</label>)}</div>
+    <RecoveryCode />
+    {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
+    <div className="mt-6 flex flex-wrap justify-between gap-3"><Button variant="ghost" disabled={busy} onClick={() => finish(true)}>Skip for now</Button><div className="flex gap-2">{step > 0 ? <Button variant="secondary" disabled={busy} onClick={() => setStep((value) => value - 1)}>Back</Button> : null}<Button disabled={busy} onClick={() => step === 2 ? finish() : setStep((value) => value + 1)}>{busy ? "Saving…" : step === 2 ? "Open dashboard" : "Continue"}</Button></div></div>
+  </Card></main>;
 }

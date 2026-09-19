@@ -1,6 +1,8 @@
 "use client";
+import { useSession } from "@/components/auth/session-provider";
 
 import Link from "next/link";
+import { GrowthChart } from "@/components/ui/growth-chart";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
@@ -29,50 +31,6 @@ import { PageSkeleton } from "@/components/ui/page-skeleton";
 type DateRange = "7" | "30" | "90";
 const dateRangeLabels: Record<DateRange, string> = { "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days" };
 
-function TrendChart({ range }: { range: DateRange }) {
-  const chartPaths: Record<DateRange, { area: string; line: string; labels: string[]; points: { x: number; y: number; score: number; change: string; signals: number }[] }> = {
-    "7": { area: "M0 148 C70 140 100 116 155 124 S245 88 315 102 S410 62 480 78 S570 42 640 48 L640 190 L0 190 Z", line: "M0 148 C70 140 100 116 155 124 S245 88 315 102 S410 62 480 78 S570 42 640 48", labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Today"], points: [{ x: 0, y: 148, score: 78, change: "+2.1%", signals: 4 }, { x: 128, y: 130, score: 80, change: "+2.8%", signals: 6 }, { x: 256, y: 112, score: 82, change: "+1.4%", signals: 8 }, { x: 384, y: 91, score: 84, change: "+3.2%", signals: 10 }, { x: 512, y: 67, score: 86, change: "+2.6%", signals: 12 }, { x: 640, y: 48, score: 87, change: "+4.1%", signals: 14 }] },
-    "30": { area: "M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38 L640 190 L0 190 Z", line: "M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38", labels: ["Jun 01", "Jun 08", "Jun 15", "Jun 22", "Today"], points: [{ x: 0, y: 150, score: 72, change: "+1.8%", signals: 18 }, { x: 160, y: 124, score: 77, change: "+4.3%", signals: 24 }, { x: 320, y: 103, score: 81, change: "+5.1%", signals: 29 }, { x: 480, y: 77, score: 84, change: "+3.7%", signals: 31 }, { x: 640, y: 38, score: 87, change: "+6.2%", signals: 34 }] },
-    "90": { area: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28 L640 190 L0 190 Z", line: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28", labels: ["Apr 01", "Apr 22", "May 13", "Jun 03", "Jun 24", "Today"], points: [{ x: 0, y: 164, score: 68, change: "+0.9%", signals: 42 }, { x: 128, y: 143, score: 72, change: "+2.2%", signals: 61 }, { x: 256, y: 122, score: 76, change: "+3.4%", signals: 79 }, { x: 384, y: 99, score: 80, change: "+4.6%", signals: 96 }, { x: 512, y: 71, score: 84, change: "+5.4%", signals: 121 }, { x: 640, y: 28, score: 87, change: "+7.8%", signals: 146 }] },
-  };
-  const chart = chartPaths[range];
-  const [activePoint, setActivePoint] = useState<(typeof chart.points)[number] | null>(null);
-  useEffect(() => { setActivePoint(null); }, [range]);
-  const handleChartMove = (event: React.PointerEvent<SVGRectElement>) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const chartX = Math.min(640, Math.max(0, ((event.clientX - bounds.left) / bounds.width) * 640));
-    const nearestPoint = chart.points.reduce((nearest, point) => Math.abs(point.x - chartX) < Math.abs(nearest.x - chartX) ? point : nearest, chart.points[0]);
-    setActivePoint(nearestPoint);
-  };
-  return (
-    <div className="relative h-52 w-full overflow-hidden rounded-2xl bg-[linear-gradient(180deg,rgba(91,53,230,.09),rgba(91,53,230,0))] px-2 pt-4 sm:h-60 sm:px-4">
-      <div className="pointer-events-none absolute inset-x-3 top-4 bottom-8 flex flex-col justify-between sm:inset-x-4">
-        {["100", "75", "50", "25", "0"].map((label) => (
-          <div key={label} className="flex items-center gap-2 text-[10px] text-subtle">
-            <span className="w-6 text-right">{label}</span>
-            <span className="h-px flex-1 border-t border-dashed border-border" />
-          </div>
-        ))}
-      </div>
-      <svg viewBox="0 0 640 190" preserveAspectRatio="none" className="absolute inset-x-9 top-4 h-[calc(100%-44px)] w-[calc(100%-52px)] sm:inset-x-12 sm:w-[calc(100%-64px)]" aria-label="Growth score trend chart" role="img">
-        <defs>
-          <linearGradient id="growth-fill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="#5b35e6" stopOpacity=".25" />
-            <stop offset="1" stopColor="#5b35e6" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={chart.area} fill="url(#growth-fill)" />
-        <path d={chart.line} fill="none" stroke="#5b35e6" strokeLinecap="round" strokeWidth="3" />
-        <rect x="0" y="0" width="640" height="190" fill="transparent" aria-label="Explore growth score trend" onPointerMove={handleChartMove} onPointerLeave={() => setActivePoint(null)} />
-        {activePoint ? <line x1={activePoint.x} x2={activePoint.x} y1="10" y2="190" stroke="#5b35e6" strokeDasharray="4 5" strokeOpacity=".28" className="transition-all duration-150" /> : null}
-        {chart.points.map((point) => <g key={`${point.x}-${point.y}`}><circle cx={point.x} cy={point.y} r="14" fill="transparent" tabIndex={0} aria-label={`${point.score} growth score on ${chart.labels[Math.round((point.x / 640) * (chart.labels.length - 1))]}`} onMouseEnter={() => setActivePoint(point)} onFocus={() => setActivePoint(point)} onBlur={() => setActivePoint(null)} onMouseLeave={() => setActivePoint(null)} /><circle cx={point.x} cy={point.y} r={activePoint?.x === point.x ? 6 : 4} fill="#fff" stroke="#5b35e6" strokeWidth={activePoint?.x === point.x ? 3 : 2} className="transition-all duration-150" /></g>)}
-      </svg>
-      {activePoint ? <div className="pointer-events-none absolute z-10 min-w-[150px] -translate-x-1/2 -translate-y-[115%] rounded-xl border border-border bg-white px-3 py-2 shadow-[0_12px_30px_rgba(23,27,43,.16)] transition-[left,top] duration-100 ease-out" style={{ left: `${Math.min(88, Math.max(12, 10 + (activePoint.x / 640) * 80))}%`, top: `${Math.max(22, 10 + (activePoint.y / 190) * 72)}%` }}><div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-subtle">{chart.labels[Math.round((activePoint.x / 640) * (chart.labels.length - 1))]}</div><div className="mt-1 flex items-baseline justify-between gap-3"><span className="text-lg font-semibold text-ink">{activePoint.score}</span><span className="text-xs font-medium text-success">{activePoint.change}</span></div><div className="mt-1 text-[11px] text-muted">{activePoint.signals} signals detected</div></div> : null}
-      <div className="absolute inset-x-10 bottom-2 flex justify-between text-[10px] text-subtle sm:inset-x-14">{chart.labels.map((label) => <span key={label}>{label}</span>)}</div>
-    </div>
-  );
-}
-
 function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; value: string; delta: string; icon: React.ReactNode; tone?: "primary" | "green" | "blue" | "amber" }) {
   const tones = { primary: "bg-primary-soft text-primary", green: "bg-emerald-50 text-success", blue: "bg-blue-50 text-info", amber: "bg-amber-50 text-warning" };
   return (
@@ -81,7 +39,7 @@ function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; v
         <div className="min-w-0">
           <div className="truncate text-xs font-medium text-muted">{label}</div>
           <div className="mt-2 truncate text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{value}</div>
-          <div className="mt-1 flex items-center gap-1 text-xs font-medium text-success"><TrendingUp className="size-3" />{delta}</div>
+          <div className="mt-1 flex items-center gap-1 text-xs font-medium text-success">{delta}</div>
         </div>
         <div className={`grid size-9 shrink-0 place-items-center rounded-xl ${tones[tone]}`}>{icon}</div>
       </div>
@@ -90,11 +48,13 @@ function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; v
 }
 
 export function DashboardView() {
+  const user = useSession();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>("30");
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<string[]>(demoDashboard.tasks.filter((task) => task.completed).map((task) => task.id));
+  useEffect(() => { if (dashboard) setCompletedTasks(dashboard.tasks.filter((task) => task.completed).map((task) => task.id)); }, [dashboard]);
 
   const loadDashboard = () => {
     setLoading(true);
@@ -122,7 +82,7 @@ export function DashboardView() {
 
   const toggleTask = (id: string, checked: boolean) => {
     setCompletedTasks((current) => checked ? [...new Set([...current, id])] : current.filter((taskId) => taskId !== id));
-    if (!id.startsWith("demo-")) void updateDashboardTask(id, checked);
+    void updateDashboardTask(id, checked).catch(() => { setCompletedTasks((current) => checked ? current.filter((taskId) => taskId !== id) : [...current, id]); });
   };
 
   return (
@@ -130,7 +90,7 @@ export function DashboardView() {
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Growth overview</div>
-          <h1 className="page-title mt-2">Hi Demo User</h1>
+          <h1 className="page-title mt-2">Hi {user?.name ?? "there"}</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">A clear view of the accounts, signals, and follow-ups that need your attention today.</p>
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -141,20 +101,20 @@ export function DashboardView() {
 
 
       <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Kpi label="New opportunities" value={summary.newOpportunities} delta={`${summary.growthDelta} vs last period`} icon={<Target className="size-4" />} />
-        <Kpi label="Companies surging" value={summary.companiesSurging} delta="8% above average" icon={<TrendingUp className="size-4" />} tone="green" />
-        <Kpi label="New signals" value={summary.newSignals} delta="12 high priority" icon={<Zap className="size-4" />} tone="amber" />
-        <Kpi label="People discovered" value={summary.peopleDiscovered} delta="23 new this week" icon={<Users className="size-4" />} tone="blue" />
-        <Kpi label="Pipeline value" value={summary.pipelineValue} delta="18% this month" icon={<CircleDollarSign className="size-4" />} tone="green" />
+        <Kpi label="New opportunities" value={summary.newOpportunities} delta="Accounts in your pipeline" icon={<Target className="size-4" />} />
+        <Kpi label="Companies surging" value={summary.companiesSurging} delta="Companies in your workspace" icon={<TrendingUp className="size-4" />} tone="green" />
+        <Kpi label="New signals" value={summary.newSignals} delta={`${dashboard.signals.filter((signal) => signal.impact === "High").length} high priority`} icon={<Zap className="size-4" />} tone="amber" />
+        <Kpi label="People discovered" value={summary.peopleDiscovered} delta="Contacts in your workspace" icon={<Users className="size-4" />} tone="blue" />
+        <Kpi label="Pipeline value" value={summary.pipelineValue} delta="Total expected opportunity value" icon={<CircleDollarSign className="size-4" />} tone="green" />
       </section>
 
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,.85fr)]">
         <Card className="glass-card min-w-0 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_42px_rgba(91,53,230,.08)]">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div><h2 className="section-title">Growth score trend</h2><p className="mt-1 text-sm text-muted">Average score across tracked companies · {selectedRange.toLowerCase()}</p></div>
-            <div className="text-right"><div className="text-2xl font-semibold text-ink">{summary.averageGrowthScore}</div><div className="text-xs font-medium text-success">{summary.growthDelta} vs prior period</div></div>
+            <div className="text-right"><div className="text-2xl font-semibold text-ink">{summary.averageGrowthScore}</div><div className="text-xs font-medium text-success">Current portfolio average</div></div>
           </div>
-          <TrendChart range={dateRange} />
+          <GrowthChart key={dateRange} days={Number(dateRange)} endScore={Number(summary.averageGrowthScore)} />
           <div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Top signal</div><div className="mt-1 truncate text-sm font-semibold text-ink">{dashboard.signals[0]?.type ?? "—"}</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Confidence</div><div className="mt-1 text-sm font-semibold text-ink">{dashboard.signals[0]?.confidence ?? 0}%</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Active accounts</div><div className="mt-1 text-sm font-semibold text-ink">{summary.companiesSurging}</div></div></div>
         </Card>
 
@@ -180,7 +140,7 @@ export function DashboardView() {
       </section>
 
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
-        <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Pipeline health</h2><p className="mt-1 text-sm text-muted">Current opportunities by stage</p></div><Link href="/opportunities" aria-label="Open pipeline"><ChevronRight className="size-5 text-primary" /></Link></div><div className="space-y-4">{dashboard.pipeline.map((stage, index) => { const count = Number.parseInt(stage.count, 10) || 0; const max = Math.max(...dashboard.pipeline.map((item) => Number.parseInt(item.count, 10) || 0), 1); return <div key={stage.title}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="font-medium text-ink">{stage.title}</span><span className="text-muted">{stage.count} · {stage.value}</span></div><div className="h-2 overflow-hidden rounded-full bg-elevated"><div className={`h-full rounded-full ${["bg-primary", "bg-info", "bg-success", "bg-warning"][index % 4]}`} style={{ width: `${Math.max(10, (count / max) * 100)}%` }} /></div></div>; })}</div></Card>
+        <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Pipeline health</h2><p className="mt-1 text-sm text-muted">Current opportunities by stage</p></div><Link href="/opportunities" aria-label="Open pipeline"><ChevronRight className="size-5 text-primary" /></Link></div><div className="space-y-4">{dashboard.pipeline.map((stage, index) => { const count = Number.parseInt(stage.count, 10) || 0; const max = Math.max(...dashboard.pipeline.map((item) => Number.parseInt(item.count, 10) || 0), 1); return <div key={stage.title}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="font-medium text-ink">{stage.title}</span><span className="text-muted">{stage.count} · {stage.value}</span></div><div className="h-2 overflow-hidden rounded-full bg-elevated"><div className={`h-full rounded-full ${["bg-primary", "bg-info", "bg-success", "bg-warning"][index % 4]}`} style={{ width: `${(count / max) * 100}%` }} /></div></div>; })}</div></Card>
         <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Recent activity</h2><p className="mt-1 text-sm text-muted">Latest updates from your workspace</p></div><Bell className="size-5 text-subtle" /></div><div className="grid gap-2.5 sm:grid-cols-2">{dashboard.activity.slice(0, 4).map((item, index) => <div key={item.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-white p-3"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-elevated text-muted">{index === 0 ? <Zap className="size-4" /> : index === 1 ? <CheckCircle2 className="size-4" /> : <Users className="size-4" />}</div><div className="min-w-0"><div className="text-sm leading-5 text-ink">{item.text}</div><div className="mt-1 text-xs text-muted">{item.age}</div></div></div>)}</div></Card>
       </section>
     </div>

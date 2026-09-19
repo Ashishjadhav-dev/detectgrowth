@@ -1,77 +1,48 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
-import { Bell, CircleHelp, LayoutGrid, Menu, Search, Sparkles, X } from "lucide-react";
+import { Bell, Menu, Search, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { SearchInput } from "@/components/ui/search-input";
 import { Button } from "@/components/ui/button";
-
-const pageTitles: Record<string, string> = {
-  "/dashboard": "Home Dashboard",
-  "/discover": "Discover",
-  "/signals": "Signals",
-  "/jobs": "Jobs",
-  "/opportunities": "Opportunities",
-  "/people": "People",
-  "/lists": "Lists",
-  "/research": "Research",
-  "/settings": "Settings",
-  "/integrations": "Integrations",
-  "/icp": "ICP Builder",
-};
-
+import { useSession } from "@/components/auth/session-provider";
+import { clearDemoSession } from "@/lib/auth";
+import { apiRequest } from "@/lib/api/client";
+import { listSignals, type ApiSignal } from "@/lib/api/signals";
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
-  const pathname = usePathname();
+  const user = useSession();
   const router = useRouter();
-  const searchRef = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
-  const [panel, setPanel] = useState<"workspace" | "notifications" | "help" | null>(null);
-  const pageTitle = Object.entries(pageTitles).find(([path]) => pathname.startsWith(path))?.[1] ?? "Home Dashboard";
-
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [panel, setPanel] = useState<"notifications" | "profile" | null>(null);
+  const [signals, setSignals] = useState<ApiSignal[]>([]);
+  const [readIds, setReadIds] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  const root = useRef<HTMLDivElement>(null);
+  const search = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    const focusSearch = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", focusSearch);
-    return () => window.removeEventListener("keydown", focusSearch);
-  }, []);
-
-  const submitSearch = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    router.push(`/discover?query=${encodeURIComponent(trimmed)}`);
-  };
-
-  const togglePanel = (nextPanel: "workspace" | "notifications" | "help") => setPanel((current) => current === nextPanel ? null : nextPanel);
-
-  return (
-    <header className="sticky top-0 z-30 border-b border-border/80 bg-white/90 backdrop-blur">
-      <div className="flex min-h-16 flex-wrap items-center gap-1.5 px-3 py-2 sm:gap-3 sm:px-4 md:px-6">
-        <Button variant="ghost" className="shrink-0 lg:hidden" aria-label="Open navigation" onClick={onMenuClick}><Menu className="size-5" /></Button>
-
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="min-w-0 flex-1 sm:flex-none sm:max-w-[280px]"><div className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">{pageTitle}</div><div className="mt-0.5 hidden truncate text-sm text-muted sm:block">Overview of live signals and pipeline activity</div></div>
-          <div className="hidden max-w-[720px] flex-1 md:block"><SearchInput value={query} onChange={setQuery} onSubmit={submitSearch} onClear={() => setQuery("")} inputRef={searchRef} placeholder="Search companies, people, signals..." /></div>
-        </div>
-
-        <div className="relative flex shrink-0 items-center gap-0.5 sm:gap-1">
-          <Button variant="ghost" className="hidden md:inline-flex" aria-label="Focus search" title="Search (⌘ K)" onClick={() => searchRef.current?.focus()}><Sparkles className="size-4" /></Button>
-          <Button variant="ghost" className="hidden md:inline-flex" aria-label="Switch workspace" title="Switch workspace" onClick={() => togglePanel("workspace")}><LayoutGrid className="size-4" /></Button>
-          <Button variant="ghost" aria-label="Notifications" title="Notifications" onClick={() => togglePanel("notifications")}><Bell className="size-4" /><span className="ml-1 inline-grid size-2 rounded-full bg-danger" /></Button>
-          <Button variant="ghost" className="hidden sm:inline-flex" aria-label="Help" title="Help" onClick={() => togglePanel("help")}><CircleHelp className="size-4" /></Button>
-          <button type="button" onClick={() => router.push("/settings")} className="ml-1 flex items-center gap-2 rounded-full border border-border bg-white px-1.5 py-1 pr-2 text-left shadow-[0_1px_1px_rgba(23,27,43,.02)] transition hover:border-primary/30 sm:px-2 sm:pr-3"><div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-xs font-semibold text-primary">DU</div><div className="hidden sm:block"><div className="text-xs font-medium leading-none text-ink">Demo User</div><div className="mt-1 text-[11px] text-muted">Demo Workspace</div></div></button>
-
-          {panel ? <div className="absolute right-0 top-12 z-40 w-[min(19rem,calc(100vw-1.5rem))] rounded-2xl border border-border bg-white p-4 shadow-[0_20px_60px_rgba(23,27,43,.16)]">
-            <div className="flex items-center justify-between gap-3"><div className="text-sm font-semibold text-ink">{panel === "workspace" ? "Switch workspace" : panel === "notifications" ? "Notifications" : "Help center"}</div><button type="button" aria-label="Close panel" onClick={() => setPanel(null)} className="rounded-lg p-1 text-muted hover:bg-elevated hover:text-ink"><X className="size-4" /></button></div>
-            {panel === "workspace" ? <div className="mt-3 space-y-2"><button type="button" onClick={() => setPanel(null)} className="flex w-full items-center justify-between rounded-xl border border-primary/30 bg-primary-soft p-3 text-left"><span><span className="block text-sm font-medium text-ink">Demo Workspace</span><span className="text-xs text-muted">Active workspace</span></span><span className="size-2 rounded-full bg-success" /></button><button type="button" onClick={() => router.push("/settings")} className="w-full rounded-xl border border-dashed border-border p-3 text-left text-sm text-muted hover:bg-elevated">Manage workspaces</button></div> : null}
-            {panel === "notifications" ? <div className="mt-3 space-y-2"><div className="rounded-xl border border-border bg-elevated p-3"><div className="text-sm font-medium text-ink">New hiring signal detected</div><div className="mt-1 text-xs text-muted">PQR Electronics · 1 hour ago</div></div><div className="rounded-xl border border-border bg-elevated p-3"><div className="text-sm font-medium text-ink">Pipeline review is due today</div><div className="mt-1 text-xs text-muted">Open your priority tasks to review it.</div></div><button type="button" onClick={() => router.push("/signals")} className="w-full pt-1 text-left text-sm font-medium text-primary">View all signals</button></div> : null}
-            {panel === "help" ? <div className="mt-3 space-y-2"><button type="button" onClick={() => router.push("/research")} className="w-full rounded-xl border border-border p-3 text-left text-sm text-ink hover:bg-elevated">How to use research</button><button type="button" onClick={() => router.push("/integrations")} className="w-full rounded-xl border border-border p-3 text-left text-sm text-ink hover:bg-elevated">Connect a data source</button><a href="mailto:support@detectgrowth.com" className="block rounded-xl border border-border p-3 text-sm text-ink hover:bg-elevated">Contact support</a></div> : null}
-          </div> : null}
-        </div>
-      </div>
-    </header>
-  );
+    listSignals().then(setSignals).catch(() => {});
+    apiRequest<{ readSignals?: string[] }>("/api/v1/settings/preferences").then((data) => setReadIds(data.readSignals ?? [])).catch(() => {});
+  }, [pathname]);
+  useEffect(() => { setPanel(null); }, [pathname]);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setPanel(null); };
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") { setPanel(null); setSearchOpen(false); } if ((event.metaKey || event.ctrlKey) && event.key === "k" && pathname !== "/jobs") { event.preventDefault(); setSearchOpen(true); requestAnimationFrame(() => search.current?.focus()); } };
+    document.addEventListener("pointerdown", outside); document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", key); };
+  }, [pathname]);
+  const unread = signals.filter((signal) => !readIds.includes(signal.id));
+  const title = pathname.split("/")[1]?.replaceAll("-", " ") ?? "Workspace";
+  return <header className="sticky top-0 z-30 border-b border-border bg-white/95 backdrop-blur"><div className="flex min-h-16 flex-wrap items-center gap-2 px-3 py-2 sm:gap-4 sm:px-6">
+    <Button variant="ghost" className="lg:hidden" aria-label="Open navigation" onClick={onMenuClick}><Menu className="size-5" /></Button>
+    <span className="min-w-0 flex-1 truncate text-sm font-semibold capitalize sm:flex-none">{title === "dashboard" ? "Growth overview" : title}</span>
+    <form className={`${searchOpen ? "order-last flex basis-full" : "hidden"} min-w-0 flex-1 items-center gap-2 md:order-none md:flex md:basis-auto`} onSubmit={(event) => { event.preventDefault(); if (query.trim()) { router.push(`/discover?query=${encodeURIComponent(query.trim())}`); setSearchOpen(false); } }}>
+      <input ref={search} aria-label="Search companies" placeholder="Search companies…" value={query} onChange={(event) => setQuery(event.target.value)} className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-white px-3 text-sm" /><Button type="submit" variant="ghost" aria-label="Submit company search"><Search className="size-4" /></Button>
+    </form>
+    <Button variant="ghost" className="md:hidden" aria-label="Open search" onClick={() => { setSearchOpen((value) => !value); requestAnimationFrame(() => search.current?.focus()); }}><Search className="size-4" /></Button>
+    <div ref={root} className="relative flex shrink-0 gap-1">
+      <Button variant="ghost" aria-label={`Notifications, ${unread.length} unread`} aria-expanded={panel === "notifications"} onClick={() => setPanel(panel === "notifications" ? null : "notifications")}><Bell className="size-4" />{unread.length ? <span className="text-xs">{unread.length}</span> : null}</Button>
+      <Button variant="ghost" aria-label="Account menu" aria-expanded={panel === "profile"} onClick={() => setPanel(panel === "profile" ? null : "profile")}><span className="grid size-8 place-items-center rounded-full bg-primary-soft text-xs font-semibold text-primary">{user?.name.split(" ").map((part) => part[0]).slice(0, 2).join("") ?? "DG"}</span><span className="hidden max-w-32 truncate text-xs sm:block">{user?.name}</span></Button>
+      {panel ? <section aria-label={panel === "profile" ? "Account" : "Notifications"} className="absolute right-0 top-12 z-40 max-h-[70vh] w-[min(20rem,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-border bg-white p-4 shadow-xl"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">{panel === "profile" ? "Your account" : "Notifications"}</h2><button aria-label="Close panel" className="p-2" onClick={() => setPanel(null)}><X className="size-4" /></button></div>{panel === "profile" ? <div className="space-y-3"><p className="break-words text-sm">{user?.name}</p><p className="break-all text-xs text-muted">{user?.email}</p><p className="break-words text-xs text-muted">{user?.workspace}</p><Button variant="secondary" className="w-full" onClick={() => router.push("/settings")}>Account settings</Button><Button variant="ghost" className="w-full" onClick={async () => { try { await clearDemoSession(); window.location.assign("/auth"); } catch { setError("Unable to sign out. Please retry."); } }}>Sign out</Button></div> : <div className="space-y-2">{signals.length ? signals.map((signal) => <button key={signal.id} className={`w-full rounded-xl border border-border p-3 text-left text-sm ${readIds.includes(signal.id) ? "text-muted" : "bg-primary-soft text-ink"}`} onClick={() => router.push("/signals")}><span className="block font-medium">{signal.type}</span><span className="mt-1 block text-xs">{signal.company}</span></button>) : <p className="text-sm text-muted">You are all caught up.</p>}<Button variant="ghost" disabled={!unread.length} onClick={async () => { const ids = signals.map((signal) => signal.id); try { await apiRequest("/api/v1/settings/preferences", { method: "PATCH", body: JSON.stringify({ readSignals: ids }) }); setReadIds(ids); } catch { setError("Unable to update notifications. Please retry."); } }}>Mark all as read</Button></div>}{error ? <p role="alert" className="mt-3 text-sm text-red-700">{error}</p> : null}</section> : null}
+    </div>
+  </div></header>;
 }
