@@ -10,6 +10,7 @@ export async function authRequest(action: string, input?: Record<string, string>
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error ?? "Unable to complete this action.");
+  if (action === "profile") window.dispatchEvent(new Event("auth-changed"));
   return data.user as SessionUser | null;
 }
 export async function clearDemoSession() {

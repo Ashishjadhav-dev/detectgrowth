@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest, context: { params: Promise<{ action: string }> }) {
   if (request.headers.get("origin") !== request.nextUrl.origin) return fail("Request origin is not allowed.", 403);
   const { action } = await context.params;
-  if (!["sign-in", "sign-up", "demo", "sign-out"].includes(action)) return fail("Not found.", 404);
+  if (!["sign-in", "sign-up", "demo", "sign-out", "profile", "password"].includes(action)) return fail("Not found.", 404);
   try {
     if (action === "sign-out") {
       const token = request.cookies.get(cookieName)?.value;
@@ -25,6 +25,27 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
       return response;
     }
     const input = action === "demo" ? {} : await request.json();
+    if (action === "profile" || action === "password") {
+      const token = request.cookies.get(cookieName)?.value;
+      return await transact((db) => {
+        const session = token ? db.sessions[tokenHash(token)] : undefined;
+        if (!session) return fail("Please sign in again.", 401);
+        const account = db.accounts.find((item) => item.id === session.user.id);
+        if (action === "password") {
+          if (!account) return fail("Password changes are available for registered accounts.");
+          if (typeof input.currentPassword !== "string" || !verify(input.currentPassword, account)) return fail("Current password is incorrect.");
+          if (typeof input.password !== "string" || input.password.length < 8 || input.password.length > 128) return fail("Use a password between 8 and 128 characters.");
+          Object.assign(account, credentials(input.password));
+          for (const [key, value] of Object.entries(db.sessions)) if (value.user.id === account.id && key !== tokenHash(token!)) delete db.sessions[key];
+        } else {
+          if (typeof input.name !== "string" || input.name.trim().length < 2 || input.name.length > 80 || typeof input.workspace !== "string" || !input.workspace.trim() || input.workspace.length > 100) return fail("Enter a name and workspace name.");
+          const profile = { name: input.name.trim(), workspace: input.workspace.trim() };
+          if (account) Object.assign(account, profile);
+          for (const value of Object.values(db.sessions)) if (value.user.id === session.user.id) Object.assign(value.user, profile);
+        }
+        return NextResponse.json({ user: session.user });
+      });
+    }
     const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
     const password = typeof input.password === "string" ? input.password : "";
     const demo = action === "demo" || (email === "demo@detectgrowth.com" && ["detectgrowth123", "Demo@123"].includes(password));

@@ -97,6 +97,7 @@ export function DashboardView() {
   const [dateRange, setDateRange] = useState<DateRange>("30");
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<string[]>(demoDashboard.tasks.filter((task) => task.completed).map((task) => task.id));
+  useEffect(() => { if (dashboard) setCompletedTasks(dashboard.tasks.filter((task) => task.completed).map((task) => task.id)); }, [dashboard]);
 
   const loadDashboard = () => {
     setLoading(true);
@@ -124,7 +125,7 @@ export function DashboardView() {
 
   const toggleTask = (id: string, checked: boolean) => {
     setCompletedTasks((current) => checked ? [...new Set([...current, id])] : current.filter((taskId) => taskId !== id));
-    if (!id.startsWith("demo-")) void updateDashboardTask(id, checked);
+    void updateDashboardTask(id, checked).catch(() => { setCompletedTasks((current) => checked ? current.filter((taskId) => taskId !== id) : [...current, id]); });
   };
 
   return (

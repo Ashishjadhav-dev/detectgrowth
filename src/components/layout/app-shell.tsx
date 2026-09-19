@@ -36,8 +36,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
     void check();
     window.addEventListener("focus", check);
+    window.addEventListener("auth-changed", check);
     const timer = window.setInterval(check, 60000);
-    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", check); };
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", check); window.removeEventListener("auth-changed", check); };
   }, [pathname]);
 
   if (sessionError) return <div className="grid min-h-screen place-content-center gap-4 p-6 text-center"><p role="alert">Unable to load your session.</p><button onClick={() => window.location.reload()} className="text-primary">Try again</button></div>;
