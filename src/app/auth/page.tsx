@@ -11,26 +11,65 @@ import { DEMO_EMAIL, DEMO_PASSWORD, isDemoLogin, saveDemoSession } from "@/lib/a
 export default function Page() {
   const router = useRouter();
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
-  const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
-  const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const useDemoAccount = () => {
+    setMode("sign-in");
+    setEmail(DEMO_EMAIL);
+    setPassword(DEMO_PASSWORD);
+    setError("");
+  };
+
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(""); setLoading(true);
+    event.preventDefault();
+    setError("");
+    setLoading(true);
     try {
       if (mode === "sign-in" && isDemoLogin(email, password)) {
         saveDemoSession();
       } else {
-        await apiRequest(mode === "sign-in" ? "/api/v1/auth/sign-in" : "/api/v1/auth/sign-up", { method: "POST", body: JSON.stringify(mode === "sign-in" ? { email, password } : { name, email, password }) });
+        await apiRequest(mode === "sign-in" ? "/api/v1/auth/sign-in" : "/api/v1/auth/sign-up", {
+          method: "POST",
+          body: JSON.stringify(mode === "sign-in" ? { email, password } : { name, email, password }),
+        });
         saveDemoSession();
       }
-      router.push("/dashboard"); router.refresh();
+      router.push("/dashboard");
+      router.refresh();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to sign in.");
+    } finally {
+      setLoading(false);
     }
-    catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Unable to authenticate."); }
-    finally { setLoading(false); }
   }
-  return <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(91,53,230,.1),transparent_30%),radial-gradient(circle_at_top_right,rgba(47,111,237,.08),transparent_25%),#f7f8fc] px-4 py-8 sm:px-6 lg:px-8">
-    <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl gap-6 lg:grid-cols-[1.05fr_.95fr]">
-      <Card className="glass-card flex flex-col justify-between overflow-hidden p-8"><div><div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Authentication & account</div><h1 className="mt-3 text-4xl font-semibold tracking-tight text-ink">Grow with better signals</h1><p className="mt-3 max-w-xl text-sm leading-6 text-muted">Connect your workspace to live company, people, signal, and opportunity data.</p></div><div className="mt-8 grid gap-3 sm:grid-cols-2">{["Google", "Microsoft", "Okta", "OneLogin"].map((provider) => <button key={provider} type="button" disabled className="rounded-2xl border border-border bg-white px-4 py-3 text-sm text-muted">{provider} SSO · coming soon</button>)}</div><div className="mt-8 grid gap-3 md:grid-cols-2"><div className="rounded-3xl border border-border bg-white p-4"><div className="text-sm font-medium text-ink">Secure sessions</div><p className="mt-2 text-sm leading-6 text-muted">Sessions are stored as hashed tokens and expire automatically.</p></div><div className="rounded-3xl border border-border bg-white p-4"><div className="text-sm font-medium text-ink">Workspace aware</div><p className="mt-2 text-sm leading-6 text-muted">Every account gets its own workspace for isolated data.</p></div></div></Card>
-      <Card className="glass-card p-8"><div className="mx-auto max-w-md"><div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">{mode === "sign-in" ? "Sign in" : "Create account"}</div><h2 className="mt-3 text-2xl font-semibold text-ink">{mode === "sign-in" ? "Welcome back" : "Start your workspace"}</h2><p className="mt-2 text-sm text-muted">{mode === "sign-in" ? "Enter your workspace email and password to continue." : "Create an account to start using live DetectGrowth data."}</p><form className="mt-6 space-y-4" onSubmit={submit}>{mode === "sign-up" && <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Name</span><Input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>}<label className="block"><span className="mb-2 block text-sm font-medium text-ink">Email</span><Input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label><label className="block"><span className="mb-2 block text-sm font-medium text-ink">Password</span><Input required minLength={8} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" /></label>{error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}<Button className="w-full" disabled={loading}>{loading ? "Connecting…" : mode === "sign-in" ? "Sign in" : "Create account"}</Button></form><button type="button" onClick={() => { setMode(mode === "sign-in" ? "sign-up" : "sign-in"); setError(""); }} className="mt-5 w-full text-sm text-primary">{mode === "sign-in" ? "Create a new account" : "Already have an account? Sign in"}</button><div className="mt-6 rounded-3xl border border-primary/20 bg-primary-soft p-4 text-sm text-muted"><div className="font-medium text-ink">Demo login</div><div className="mt-1">Email: <span className="font-medium text-ink">{DEMO_EMAIL}</span></div><div>Password: <span className="font-medium text-ink">{DEMO_PASSWORD}</span></div><div className="mt-2 text-xs">Works without the backend. If the API is available, real accounts can also sign in.</div></div></div></Card>
-    </div>
-  </div>;
+
+  const isSignIn = mode === "sign-in";
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,rgba(91,53,230,.12),transparent_38%),#f7f8fc] px-4 py-8">
+      <Card className="w-full max-w-[440px] overflow-hidden border-white/80 p-6 shadow-[0_24px_80px_rgba(55,52,44,.10)] sm:p-8">
+        <div className="text-center">
+          <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary text-sm font-semibold text-white shadow-[0_10px_24px_rgba(91,53,230,.22)]">DG</div>
+          <h1 className="mt-6 text-2xl font-semibold tracking-tight text-ink">{isSignIn ? "Welcome back" : "Create your account"}</h1>
+          <p className="mt-2 text-sm text-muted">{isSignIn ? "Sign in to your DetectGrowth workspace." : "Start your DetectGrowth workspace."}</p>
+        </div>
+
+        <form className="mt-7 space-y-4" onSubmit={submit}>
+          {!isSignIn ? <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Name</span><Input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label> : null}
+          <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Email</span><Input required autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label>
+          <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Password</span><Input required minLength={8} autoComplete={isSignIn ? "current-password" : "new-password"} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Your password" /></label>
+          {error ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+          <Button className="w-full" disabled={loading}>{loading ? "Signing in…" : isSignIn ? "Sign in" : "Create account"}</Button>
+        </form>
+
+        {isSignIn ? <button type="button" onClick={useDemoAccount} className="mt-4 w-full rounded-xl border border-primary/20 bg-primary-soft px-3 py-2.5 text-sm font-medium text-primary transition hover:border-primary/40">Use demo account</button> : null}
+        <button type="button" onClick={() => { setMode(isSignIn ? "sign-up" : "sign-in"); setError(""); }} className="mt-5 w-full text-sm font-medium text-primary hover:underline">{isSignIn ? "Create a new account" : "Already have an account? Sign in"}</button>
+        {isSignIn ? <p className="mt-6 text-center text-xs text-muted">Demo: {DEMO_EMAIL} · {DEMO_PASSWORD}</p> : null}
+      </Card>
+    </main>
+  );
 }
