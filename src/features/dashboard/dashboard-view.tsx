@@ -9,6 +9,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
   CircleDollarSign,
   Clock3,
   RefreshCw,
@@ -25,7 +26,16 @@ import { getDashboardData, updateDashboardTask, type DashboardData } from "@/lib
 import { demoDashboard } from "@/data/demo";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 
-function TrendChart() {
+type DateRange = "7" | "30" | "90";
+const dateRangeLabels: Record<DateRange, string> = { "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days" };
+
+function TrendChart({ range }: { range: DateRange }) {
+  const chartPaths: Record<DateRange, { area: string; line: string; labels: string[] }> = {
+    "7": { area: "M0 148 C70 140 100 116 155 124 S245 88 315 102 S410 62 480 78 S570 42 640 48 L640 190 L0 190 Z", line: "M0 148 C70 140 100 116 155 124 S245 88 315 102 S410 62 480 78 S570 42 640 48", labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Today"] },
+    "30": { area: "M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38 L640 190 L0 190 Z", line: "M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38", labels: ["Jun 01", "Jun 08", "Jun 15", "Jun 22", "Today"] },
+    "90": { area: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28 L640 190 L0 190 Z", line: "M0 164 C55 152 92 156 130 138 S190 148 238 118 S300 126 345 101 S412 110 458 72 S520 84 560 54 S610 58 640 28", labels: ["Apr 01", "Apr 22", "May 13", "Jun 03", "Jun 24", "Today"] },
+  };
+  const chart = chartPaths[range];
   return (
     <div className="relative h-52 w-full overflow-hidden rounded-2xl bg-[linear-gradient(180deg,rgba(91,53,230,.09),rgba(91,53,230,0))] px-2 pt-4 sm:h-60 sm:px-4">
       <div className="pointer-events-none absolute inset-x-3 top-4 bottom-8 flex flex-col justify-between sm:inset-x-4">
@@ -43,11 +53,11 @@ function TrendChart() {
             <stop offset="1" stopColor="#5b35e6" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <path d="M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38 L640 190 L0 190 Z" fill="url(#growth-fill)" />
-        <path d="M0 150 C50 145 60 128 110 132 S160 120 205 126 S250 92 300 106 S345 95 390 96 S430 64 480 78 S530 54 570 58 S615 30 640 38" fill="none" stroke="#5b35e6" strokeLinecap="round" strokeWidth="3" />
-        <circle cx="640" cy="38" r="5" fill="#fff" stroke="#5b35e6" strokeWidth="3" />
+        <path d={chart.area} fill="url(#growth-fill)" />
+        <path d={chart.line} fill="none" stroke="#5b35e6" strokeLinecap="round" strokeWidth="3" />
+        <circle cx="640" cy="28" r="5" fill="#fff" stroke="#5b35e6" strokeWidth="3" />
       </svg>
-      <div className="absolute inset-x-10 bottom-2 flex justify-between text-[10px] text-subtle sm:inset-x-14"><span>Jun 01</span><span>Jun 08</span><span>Jun 15</span><span>Jun 22</span><span>Today</span></div>
+      <div className="absolute inset-x-10 bottom-2 flex justify-between text-[10px] text-subtle sm:inset-x-14">{chart.labels.map((label) => <span key={label}>{label}</span>)}</div>
     </div>
   );
 }
@@ -55,7 +65,7 @@ function TrendChart() {
 function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; value: string; delta: string; icon: React.ReactNode; tone?: "primary" | "green" | "blue" | "amber" }) {
   const tones = { primary: "bg-primary-soft text-primary", green: "bg-emerald-50 text-success", blue: "bg-blue-50 text-info", amber: "bg-amber-50 text-warning" };
   return (
-    <Card className="glass-card min-w-0 p-4">
+    <Card className="glass-card min-w-0 p-4 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_16px_36px_rgba(91,53,230,.09)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-xs font-medium text-muted">{label}</div>
@@ -71,6 +81,8 @@ function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; v
 export function DashboardView() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange>("30");
+  const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<string[]>(demoDashboard.tasks.filter((task) => task.completed).map((task) => task.id));
 
   const loadDashboard = () => {
@@ -92,6 +104,7 @@ export function DashboardView() {
   if (!dashboard) return <PageSkeleton variant="dashboard" />;
 
   const summary = dashboard.summary;
+  const selectedRange = dateRangeLabels[dateRange];
 
   const toggleTask = (id: string, checked: boolean) => {
     setCompletedTasks((current) => checked ? [...new Set([...current, id])] : current.filter((taskId) => taskId !== id));
@@ -107,7 +120,7 @@ export function DashboardView() {
           <p className="mt-1 max-w-2xl text-sm text-muted">A clear view of the accounts, signals, and follow-ups that need your attention today.</p>
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
-          <Button variant="secondary" size="sm"><CalendarDays className="size-4" />Last 30 days</Button>
+          <div className="relative"><Button variant="secondary" size="sm" onClick={() => setDateMenuOpen((open) => !open)} aria-expanded={dateMenuOpen} aria-haspopup="listbox"><CalendarDays className="size-4" />{selectedRange}<ChevronDown className={`size-3.5 transition-transform duration-200 ${dateMenuOpen ? "rotate-180" : ""}`} /></Button>{dateMenuOpen ? <div className="absolute right-0 top-11 z-20 w-40 rounded-xl border border-border bg-white p-1.5 shadow-[0_16px_40px_rgba(23,27,43,.14)]" role="listbox" aria-label="Date range"><div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle">Date range</div>{(Object.keys(dateRangeLabels) as DateRange[]).map((option) => <button type="button" key={option} role="option" aria-selected={dateRange === option} onClick={() => { setDateRange(option); setDateMenuOpen(false); }} className={`flex w-full items-center rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors ${dateRange === option ? "bg-primary-soft text-primary" : "text-muted hover:bg-elevated hover:text-ink"}`}>{dateRangeLabels[option]}</button>)}</div> : null}</div>
           <Button variant="secondary" size="sm" onClick={loadDashboard} disabled={loading}><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
         </div>
       </section>
@@ -122,16 +135,16 @@ export function DashboardView() {
       </section>
 
       <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,.85fr)]">
-        <Card className="glass-card min-w-0 p-5">
+        <Card className="glass-card min-w-0 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_42px_rgba(91,53,230,.08)]">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div><h2 className="section-title">Growth score trend</h2><p className="mt-1 text-sm text-muted">Average score across tracked companies</p></div>
-            <div className="text-right"><div className="text-2xl font-semibold text-ink">{summary.averageGrowthScore}</div><div className="text-xs font-medium text-success">{summary.growthDelta} this month</div></div>
+            <div><h2 className="section-title">Growth score trend</h2><p className="mt-1 text-sm text-muted">Average score across tracked companies · {selectedRange.toLowerCase()}</p></div>
+            <div className="text-right"><div className="text-2xl font-semibold text-ink">{summary.averageGrowthScore}</div><div className="text-xs font-medium text-success">{summary.growthDelta} vs prior period</div></div>
           </div>
-          <TrendChart />
+          <TrendChart range={dateRange} />
           <div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Top signal</div><div className="mt-1 truncate text-sm font-semibold text-ink">{dashboard.signals[0]?.type ?? "—"}</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Confidence</div><div className="mt-1 text-sm font-semibold text-ink">{dashboard.signals[0]?.confidence ?? 0}%</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Active accounts</div><div className="mt-1 text-sm font-semibold text-ink">{summary.companiesSurging}</div></div></div>
         </Card>
 
-        <Card className="glass-card min-w-0 p-5">
+        <Card className="glass-card min-w-0 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_42px_rgba(91,53,230,.08)]">
           <div className="flex items-start justify-between gap-3"><div><h2 className="section-title">My priorities</h2><p className="mt-1 text-sm text-muted">Follow-ups for today</p></div><Badge className="bg-primary-soft text-primary">{openTasks.length} open</Badge></div>
           <div className="mt-4 space-y-2.5">
             {dashboard.tasks.map((task) => <label key={task.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${completedTasks.includes(task.id) ? "border-emerald-100 bg-emerald-50/50" : "border-border bg-white hover:border-primary/30"}`}><input type="checkbox" checked={completedTasks.includes(task.id)} onChange={(event) => toggleTask(task.id, event.target.checked)} className="mt-0.5 size-4 rounded border-border text-primary" /><span className="min-w-0 flex-1"><span className={`block text-sm font-medium ${completedTasks.includes(task.id) ? "text-muted line-through" : "text-ink"}`}>{task.label}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-muted"><Clock3 className="size-3" />{task.due}<span>·</span>{task.urgency} priority</span></span>{completedTasks.includes(task.id) ? <Check className="size-4 shrink-0 text-success" /> : null}</label>)}
