@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Ref } from "react";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Input } from "./input";
@@ -12,6 +12,7 @@ type SearchInputProps = {
   onSubmit?: (value: string) => void;
   onClear?: () => void;
   className?: string;
+  inputRef?: Ref<HTMLInputElement>;
 };
 
 export function SearchInput({
@@ -22,6 +23,7 @@ export function SearchInput({
   onSubmit,
   onClear,
   className,
+  inputRef,
 }: SearchInputProps) {
   const [internalValue, setInternalValue] = useState(defaultValue);
   const isControlled = value !== undefined;
@@ -44,6 +46,7 @@ export function SearchInput({
     <label className={cn("relative block w-full", className)}>
       <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-subtle" />
       <Input
+        ref={inputRef}
         aria-label="Search"
         placeholder={placeholder}
         value={currentValue}

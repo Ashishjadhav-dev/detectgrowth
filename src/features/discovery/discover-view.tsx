@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Bookmark,
@@ -38,7 +39,8 @@ const quickFilters = [
 ] as const;
 
 export function DiscoverView() {
-  const [query, setQuery] = useState("");
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Companies");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterFocus, setFilterFocus] = useState<"All" | "High fit" | "High intent" | "Recently active">("All");
