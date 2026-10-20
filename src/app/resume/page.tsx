@@ -185,14 +185,14 @@ export default function ResumeWorkspace() {
   const atsScoreColor = atsAnalysis ? (atsAnalysis.score >= 80 ? "#5f6f52" : atsAnalysis.score >= 60 ? "#d09b3f" : "#bf5a54") : "#5f6f52";
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto w-full max-w-[1500px] space-y-5">
       <div>
         <Badge>Resume workspace</Badge>
         <h1 className="page-title mt-3">Your resume, ready for the next opportunity.</h1>
         <p className="meta mt-2 max-w-2xl">Upload a resume you already have or create a polished one from your professional details.</p>
       </div>
 
-      <div className={`grid gap-5 ${createRoute ? "grid-cols-1" : "xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.6fr)]"}`}>
+      <div className="grid grid-cols-1 gap-5">
         <div className={createRoute ? "hidden" : "space-y-5"}>
         <div className="flex rounded-2xl border border-border bg-white p-1.5" role="tablist" aria-label="Resume tools">
           <button type="button" role="tab" aria-selected={activeResumeTab === "upload"} onClick={() => selectResumeTab("upload")} className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition ${activeResumeTab === "upload" ? "bg-primary text-white shadow-sm" : "text-muted hover:bg-elevated hover:text-ink"}`}><UploadCloud className="mr-2 inline-block size-4" />Upload resume</button>
