@@ -41,4 +41,5 @@ export async function clearDemoSession() {
   await authRequest("sign-out");
   window.localStorage.removeItem("detectgrowth-demo-session");
   window.sessionStorage.removeItem("detectgrowth-recovery-code");
+  window.sessionStorage.setItem("detectgrowth-signed-out", "1");
 }
