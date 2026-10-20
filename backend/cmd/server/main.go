@@ -519,7 +519,14 @@ func setSessionCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, sessionCookie(token, 60*60*24*30))
 }
 func sessionCookie(value string, maxAge int) *http.Cookie {
-	return &http.Cookie{Name: "detectgrowth_session", Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: os.Getenv("COOKIE_SECURE") == "true", SameSite: http.SameSiteLaxMode}
+	secure := os.Getenv("COOKIE_SECURE") == "true"
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		// The production frontend and Go API are hosted on different domains.
+		// None + Secure allows the browser to send the session cookie on API fetches.
+		sameSite = http.SameSiteNoneMode
+	}
+	return &http.Cookie{Name: "detectgrowth_session", Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: secure, SameSite: sameSite}
 }
 
 func ensureWorkspace(ctx context.Context, db *sql.DB) (string, error) {
