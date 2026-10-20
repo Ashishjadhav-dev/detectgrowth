@@ -4,6 +4,7 @@
 
 html { background: #f4f2ee; }
 :root { color-scheme: light; }
+html.dark { color-scheme: dark; background: #111512; }
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -11,6 +12,22 @@ body {
   background: #f4f2ee;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
+html.dark body { color: #edf1eb; background: #111512; }
+html.dark .bg-white, html.dark .bg-white\/95 { background-color: #181d19; }
+html.dark .bg-surface { background-color: #181d19; }
+html.dark .bg-elevated, html.dark .bg-elevated\/30, html.dark .bg-elevated\/40 { background-color: #202720; }
+html.dark .bg-primary-soft { background-color: #273526; }
+html.dark .border-border, html.dark .border-border\/80 { border-color: #354136; }
+html.dark .text-ink { color: #edf1eb; }
+html.dark .text-muted { color: #aeb9aa; }
+html.dark .text-subtle { color: #7f8b7c; }
+html.dark .text-primary { color: #b9d0a9; }
+html.dark .hover\:bg-elevated:hover { background-color: #263026; }
+html.dark .hover\:bg-white:hover { background-color: #252d25; }
+html.dark input, html.dark textarea, html.dark select { color: #edf1eb; background-color: #181d19; border-color: #354136; }
+html.dark input::placeholder, html.dark textarea::placeholder { color: #7f8b7c; }
+html.dark .shadow-xl, html.dark .shadow-lg, html.dark .shadow-md { box-shadow: 0 18px 50px rgba(0, 0, 0, .35); }
+html.dark .bg-neutral-50 { background-color: #111512; }
 button, input, select { font: inherit; }
 :focus-visible { outline: 3px solid rgba(95,111,82,.28); outline-offset: 2px; }
 ::selection { background: rgba(95,111,82,.18); }
