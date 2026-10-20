@@ -79,10 +79,14 @@ func main() {
 	mux.HandleFunc("POST /api/v1/auth/sign-up", api.signUp)
 	mux.HandleFunc("POST /api/v1/auth/sign-in", api.signIn)
 	mux.HandleFunc("POST /api/v1/auth/sign-out", api.signOut)
+	mux.HandleFunc("POST /api/v1/auth/request-password-reset", api.requestPasswordReset)
+	mux.HandleFunc("POST /api/v1/auth/verify-password-reset", api.verifyPasswordReset)
+	mux.HandleFunc("POST /api/v1/auth/reset-password", api.resetPassword)
 	mux.HandleFunc("GET /api/v1/me", api.me)
 	mux.HandleFunc("GET /api/v1/research", api.research)
 	mux.HandleFunc("GET /api/v1/settings/icp", api.getICP)
 	mux.HandleFunc("PATCH /api/v1/settings/icp", api.updateICP)
+	mux.HandleFunc("PATCH /api/v1/settings/preferences", api.updatePreferences)
 	mux.HandleFunc("GET /api/v1/integrations", api.listIntegrations)
 	mux.HandleFunc("PATCH /api/v1/integrations/{provider}", api.updateIntegration)
 	mux.HandleFunc("GET /api/v1/events", api.events)
@@ -215,6 +219,188 @@ func (a *app) signIn(w http.ResponseWriter, r *http.Request) {
 	}
 	setSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, apiResponse{Data: authUser{ID: userID, Email: email, Name: name, Workspace: map[string]any{"id": workspaceID, "name": workspaceName}}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) requestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Enter a valid email address.")
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(input.Email))
+	if !validEmail(email) {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Enter a valid email address.")
+		return
+	}
+
+	// Always use the same response for known and unknown emails.
+	var userID, name string
+	err := a.db.QueryRowContext(r.Context(), `SELECT id::text, name FROM users WHERE lower(email) = $1 AND status = 'active'`, email).Scan(&userID, &name)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusOK, apiResponse{Data: map[string]string{"message": "If an account exists, a verification code has been sent."}, Meta: map[string]any{"requestId": requestID(r)}})
+		return
+	}
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to start password reset.")
+		return
+	}
+	code, err := sixDigitCode()
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "AUTH_ERROR", "Unable to create verification code.")
+		return
+	}
+	_, _ = a.db.ExecContext(r.Context(), `UPDATE password_reset_requests SET consumed_at = now() WHERE user_id = $1 AND consumed_at IS NULL`, userID)
+	_, err = a.db.ExecContext(r.Context(), `INSERT INTO password_reset_requests (user_id, email, code_hash, code_expires_at) VALUES ($1, $2, $3, now() + interval '10 minutes')`, userID, email, hashToken(code))
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to start password reset.")
+		return
+	}
+	if err := a.sendPasswordResetEmail(r.Context(), email, name, code); err != nil {
+		if os.Getenv("APP_ENV") == "development" {
+			log.Printf("password reset code for %s: %s", email, code)
+		} else {
+			writeError(w, r, http.StatusServiceUnavailable, "EMAIL_UNAVAILABLE", "Unable to send the verification email.")
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]string{"message": "If an account exists, a verification code has been sent."}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) verifyPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email string `json:"email"`
+		Code  string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Email and verification code are required.")
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(input.Email))
+	code := strings.TrimSpace(input.Code)
+	if !validEmail(email) || len(code) != 6 {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Enter the email and six-digit verification code.")
+		return
+	}
+	var id, codeHash string
+	err := a.db.QueryRowContext(r.Context(), `SELECT id::text, code_hash FROM password_reset_requests WHERE lower(email) = $1 AND consumed_at IS NULL AND code_expires_at > now() AND attempts < 5 ORDER BY created_at DESC LIMIT 1`, email).Scan(&id, &codeHash)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, r, http.StatusBadRequest, "INVALID_CODE", "That code is invalid or has expired.")
+		return
+	}
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to verify the code.")
+		return
+	}
+	if _, err = a.db.ExecContext(r.Context(), `UPDATE password_reset_requests SET attempts = attempts + 1 WHERE id = $1`, id); err != nil || hashToken(code) != codeHash {
+		writeError(w, r, http.StatusBadRequest, "INVALID_CODE", "That code is invalid or has expired.")
+		return
+	}
+	token, _, err := newSessionToken()
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "AUTH_ERROR", "Unable to verify the code.")
+		return
+	}
+	_, err = a.db.ExecContext(r.Context(), `UPDATE password_reset_requests SET verified_at = now(), reset_token_hash = $1, reset_token_expires_at = now() + interval '15 minutes' WHERE id = $2`, hashToken(token), id)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to verify the code.")
+		return
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]string{"resetToken": token}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) resetPassword(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		ResetToken string `json:"resetToken"`
+		Password   string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input.ResetToken == "" || len(input.Password) < 8 || len(input.Password) > 128 {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Use a valid reset token and a password between 8 and 128 characters.")
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "AUTH_ERROR", "Unable to update password.")
+		return
+	}
+	tx, err := a.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update password.")
+		return
+	}
+	defer tx.Rollback()
+	var userID string
+	err = tx.QueryRowContext(r.Context(), `SELECT user_id::text FROM password_reset_requests WHERE reset_token_hash = $1 AND verified_at IS NOT NULL AND reset_token_expires_at > now() AND consumed_at IS NULL`, hashToken(input.ResetToken)).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, r, http.StatusBadRequest, "INVALID_RESET", "This password reset request is invalid or expired.")
+		return
+	}
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update password.")
+		return
+	}
+	if _, err = tx.ExecContext(r.Context(), `UPDATE users SET password_hash = $1, email_verified_at = COALESCE(email_verified_at, now()), updated_at = now() WHERE id = $2`, string(hash), userID); err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update password.")
+		return
+	}
+	if _, err = tx.ExecContext(r.Context(), `DELETE FROM sessions WHERE user_id = $1`, userID); err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update password.")
+		return
+	}
+	if _, err = tx.ExecContext(r.Context(), `UPDATE password_reset_requests SET consumed_at = now() WHERE reset_token_hash = $1`, hashToken(input.ResetToken)); err != nil || tx.Commit() != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to finish password reset.")
+		return
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]string{"message": "Password updated. You can now sign in."}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) sendPasswordResetEmail(ctx context.Context, email, name, code string) error {
+	apiKey := os.Getenv("RESEND_API_KEY")
+	from := envOr("RESEND_FROM_EMAIL", "DetectGrowth <security@detectgrowth.com>")
+	if apiKey == "" {
+		if os.Getenv("APP_ENV") == "development" {
+			return nil
+		}
+		return errors.New("RESEND_API_KEY is not configured")
+	}
+	payload, err := json.Marshal(map[string]any{
+		"from":    from,
+		"to":      []string{email},
+		"subject": "Your DetectGrowth verification code",
+		"text":    fmt.Sprintf("Hi %s,\n\nYour DetectGrowth password reset code is: %s\n\nThis code expires in 10 minutes. If you did not request this, you can ignore this email.\n", name, code),
+	})
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", strings.NewReader(string(payload)))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", "Bearer "+apiKey)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("email provider returned status %d", response.StatusCode)
+	}
+	return nil
+}
+
+func sixDigitCode() (string, error) {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	value := uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
+	return fmt.Sprintf("%06d", value%1000000), nil
+}
+
+func validEmail(email string) bool {
+	return strings.Count(email, "@") == 1 && !strings.ContainsAny(email, " \t\r\n") && strings.Contains(strings.Split(email, "@")[1], ".")
 }
 
 func (a *app) signOut(w http.ResponseWriter, r *http.Request) {
@@ -441,6 +627,35 @@ func (a *app) updateICP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, apiResponse{Data: settings, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) updatePreferences(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Role        string   `json:"role"`
+		Goal        string   `json:"goal"`
+		SignalTypes []string `json:"signalTypes"`
+		Onboarded   bool     `json:"onboarded"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil || strings.TrimSpace(input.Role) == "" || strings.TrimSpace(input.Goal) == "" {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Role and goal are required.")
+		return
+	}
+	if len(input.SignalTypes) > 20 {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Choose up to 20 preferences.")
+		return
+	}
+	workspaceID := a.workspaceIDFor(r)
+	signalTypes, err := json.Marshal(input.SignalTypes)
+	if err != nil {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid preferences.")
+		return
+	}
+	_, err = a.db.ExecContext(r.Context(), `INSERT INTO workspace_preferences (workspace_id, role, goal, signal_types, onboarded, updated_at) VALUES ($1, $2, $3, $4::jsonb, $5, now()) ON CONFLICT (workspace_id) DO UPDATE SET role = EXCLUDED.role, goal = EXCLUDED.goal, signal_types = EXCLUDED.signal_types, onboarded = EXCLUDED.onboarded, updated_at = now()`, workspaceID, strings.TrimSpace(input.Role), strings.TrimSpace(input.Goal), string(signalTypes), input.Onboarded)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to save workspace preferences.")
+		return
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"role": strings.TrimSpace(input.Role), "goal": strings.TrimSpace(input.Goal), "signalTypes": input.SignalTypes, "onboarded": input.Onboarded}, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 type integrationDefinition struct {
