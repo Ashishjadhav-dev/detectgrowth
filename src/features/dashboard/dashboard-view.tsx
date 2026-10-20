@@ -13,11 +13,11 @@ import { getDashboardData, updateDashboardTask, type DashboardData } from "@/lib
 import { demoDashboard } from "@/data/demo";
 
 function Metric({ label, value, detail, icon, tone }: { label: string; value: string; detail: string; icon: React.ReactNode; tone: string }) {
-  return <Card className="p-4 transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p><p className="mt-2 truncate text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{value}</p><p className="mt-1 truncate text-xs text-muted">{detail}</p></div><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${tone}`}>{icon}</span></div></Card>;
+  return <Card className="p-3.5 transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{label}</p><p className="mt-1 truncate text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{value}</p><p className="mt-1 truncate text-xs text-muted">{detail}</p></div><span className={`grid size-9 shrink-0 place-items-center rounded-lg ${tone}`}>{icon}</span></div></Card>;
 }
 
 function EmptyState({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-xl border border-dashed border-border bg-elevated/40 p-6 text-center text-sm text-muted">{children}</div>;
+  return <div className="rounded-xl border border-dashed border-border bg-elevated/40 p-4 text-center text-sm text-muted">{children}</div>;
 }
 
 export function DashboardView() {
@@ -36,8 +36,8 @@ export function DashboardView() {
   const openTasks = dashboard.tasks.filter((task) => !completedTasks.includes(task.id));
   const toggleTask = (id: string, completed: boolean) => { setCompletedTasks((current) => completed ? [...new Set([...current, id])] : current.filter((item) => item !== id)); void updateDashboardTask(id, completed).catch(() => {}); };
 
-  return <div className="mx-auto max-w-[1500px] space-y-6 pb-10">
-    <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h1 className="page-title">Hi {user?.name ?? "Demo User"}</h1><p className="meta mt-2">A clear view of your latest activity, pipeline, and resume health.</p></div><div className="flex flex-wrap gap-2"><Link href="/resume/upload"><Button variant="secondary"><FileText className="size-4" />Upload resume</Button></Link><AICopilotDrawer triggerLabel="Tailor for job description" /></div></section>
+  return <div className="dashboard-compact mx-auto max-w-[1500px] space-y-4 pb-6">
+    <section className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><h1 className="page-title">Hi {user?.name ?? "Demo User"}</h1><p className="meta mt-1">A clear view of your latest activity, pipeline, and resume health.</p></div><div className="flex flex-wrap gap-2"><Link href="/resume/upload"><Button variant="secondary" size="sm"><FileText className="size-4" />Upload resume</Button></Link><AICopilotDrawer triggerLabel="Tailor for job description" /></div></section>
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="New opportunities" value={summary.newOpportunities || "0"} detail={`${summary.growthDelta || "No change"} this period`} icon={<BriefcaseBusiness className="size-5" />} tone="bg-primary-soft text-primary" /><Metric label="Pipeline value" value={summary.pipelineValue || "$0"} detail="Across tracked opportunities" icon={<TrendingUp className="size-5" />} tone="bg-emerald-50 text-emerald-600" /><Metric label="Signals detected" value={summary.newSignals || "0"} detail={`${summary.companiesSurging || "0"} companies surging`} icon={<Target className="size-5" />} tone="bg-amber-50 text-amber-600" /><Metric label="Average match" value={summary.averageGrowthScore ? `${summary.averageGrowthScore}/100` : "—"} detail={`${summary.peopleDiscovered || "0"} people discovered`} icon={<Sparkles className="size-5" />} tone="bg-sky-50 text-sky-600" /></section>
 
