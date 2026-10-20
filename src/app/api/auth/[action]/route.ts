@@ -25,9 +25,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
     if (action === "sign-out") {
       const token = request.cookies.get(cookieName)?.value;
       if (token) await transact((db) => { delete db.sessions[tokenHash(token)]; });
-      const response = NextResponse.json({ user: null });
-      response.cookies.delete(cookieName);
-      response.cookies.delete(guestCookieName);
+      const response = NextResponse.json({ user: null }, { headers: { "Cache-Control": "no-store" } });
+      const cookieOptions = { httpOnly: true, sameSite: "lax" as const, secure: request.nextUrl.protocol === "https:", path: "/", maxAge: 0, expires: new Date(0) };
+      response.cookies.set(cookieName, "", cookieOptions);
+      response.cookies.set(guestCookieName, "", cookieOptions);
       return response;
     }
     const input = action === "demo" ? {} : await request.json();
