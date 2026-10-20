@@ -1,4 +1,6 @@
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
+// Treat relative/invalid production values as same-origin API routing.
+const API_BASE_URL = /^https?:\/\//i.test(configuredApiUrl) ? configuredApiUrl.replace(/\/$/, "") : "";
 
 export class ApiRequestError extends Error {
   constructor(public readonly status: number, message: string) {

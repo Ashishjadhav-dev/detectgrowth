@@ -1,7 +1,10 @@
 export const DEMO_EMAIL = "demo@detectgrowth.com";
 export const DEMO_PASSWORD = "detectgrowth123";
 export type SessionUser = { id: string; name: string; email: string; workspace: string; isDemo: boolean };
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
+// Same-origin Next.js API routes are the Vercel deployment default. Ignore
+// accidental relative values such as "/a" instead of generating /a/api/... URLs.
+const API_BASE_URL = /^https?:\/\//i.test(configuredApiUrl) ? configuredApiUrl.replace(/\/$/, "") : "";
 const backendActions = new Set(["sign-in", "sign-up", "sign-out", "demo", "request-password-reset", "verify-password-reset", "reset-password"]);
 
 function mapUser(raw: unknown): SessionUser | null {
