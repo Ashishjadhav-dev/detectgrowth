@@ -90,6 +90,7 @@ export default function ResumeWorkspace() {
   const [saved, setSaved] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
   const [generated, setGenerated] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [atsAnalysis, setAtsAnalysis] = useState<AtsAnalysis | null>(null);
   const [activeResumeTab, setActiveResumeTab] = useState<"upload" | "analysis">(pathname.endsWith("/analysis") ? "analysis" : "upload");
@@ -150,7 +151,12 @@ export default function ResumeWorkspace() {
 
   const createResume = () => {
     saveDraft();
-    setGenerated(true);
+    setCreating(true);
+    setGenerated(false);
+    window.setTimeout(() => {
+      setCreating(false);
+      setGenerated(true);
+    }, 1800);
   };
 
   const downloadResume = () => {
@@ -256,7 +262,8 @@ export default function ResumeWorkspace() {
         {activeResumeTab === "analysis" && !analyzing && !atsAnalysis ? <Card className="p-8 text-center"><span className="mx-auto grid size-12 place-items-center rounded-full bg-primary-soft text-primary"><Check className="size-5" /></span><h2 className="section-title mt-4">No analysis yet</h2><p className="meta mx-auto mt-2 max-w-xs">Upload a resume first, then return here to see its ATS score and recommendations.</p><Button className="mt-5" variant="secondary" onClick={() => selectResumeTab("upload")}>Go to upload</Button></Card> : null}
         </div>
 
-        <Card className={createRoute ? "mx-auto w-full max-w-4xl p-5 sm:p-6" : "hidden"}>
+        <Card className={createRoute ? "relative mx-auto w-full max-w-6xl overflow-hidden p-5 sm:p-6" : "hidden"}>
+          {creating ? <div className="absolute inset-0 z-20 flex min-h-[520px] items-center justify-center bg-white/95 p-6 backdrop-blur-sm"><div className="w-full max-w-sm text-center"><div className="relative mx-auto grid size-20 place-items-center rounded-3xl bg-primary-soft text-primary"><FileText className="size-9 animate-pulse" /><span className="absolute -right-1 -top-1 size-4 animate-ping rounded-full bg-primary/40" /></div><h2 className="section-title mt-6">Creating your resume</h2><p className="meta mt-2">Applying your style, organizing your content, and preparing a polished CV preview.</p><div className="mx-auto mt-6 h-2 max-w-xs overflow-hidden rounded-full bg-elevated"><div className="h-full w-2/3 animate-pulse rounded-full bg-primary" /></div><div className="mt-4 flex justify-center gap-1.5" aria-label="Creating resume"><span className="size-2 animate-bounce rounded-full bg-primary [animation-delay:-.3s]" /><span className="size-2 animate-bounce rounded-full bg-primary [animation-delay:-.15s]" /><span className="size-2 animate-bounce rounded-full bg-primary" /></div></div></div> : null}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><FileText className="size-5" /></span><div><h2 className="section-title">Create your resume</h2><p className="meta mt-1">Add the details employers need to know.</p></div></div>
             {saved ? <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700"><Check className="size-3.5" />Draft saved</span> : null}
@@ -298,7 +305,7 @@ export default function ResumeWorkspace() {
             <section><h3 className="text-sm font-semibold text-ink">Experience and education</h3><div className="mt-3 grid gap-4 sm:grid-cols-2"><Field label="Work experience"><textarea value={draft.experience} onChange={(event) => update("experience", event.target.value)} placeholder={"Role · Company · Dates\nAdd achievements and measurable impact…"} rows={6} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field><Field label="Education"><textarea value={draft.education} onChange={(event) => update("education", event.target.value)} placeholder="Degree · Institution · Dates" rows={6} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field></div></section>
             <section><h3 className="text-sm font-semibold text-ink">Skills and projects</h3><div className="mt-3 grid gap-4 sm:grid-cols-2"><Field label="Skills"><textarea value={draft.skills} onChange={(event) => update("skills", event.target.value)} placeholder="Growth strategy, SQL, HubSpot, Research…" rows={4} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field><Field label="Projects or achievements"><textarea value={draft.projects} onChange={(event) => update("projects", event.target.value)} placeholder="Project name · What you built · Result" rows={4} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field></div></section>
           </div>
-          <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-border pt-5"><Button variant="secondary" onClick={saveDraft}>Save draft</Button><Button onClick={createResume}><FileText className="size-4" />Create resume</Button></div>
+          <div className="mt-6 flex flex-col-reverse justify-end gap-3 border-t border-border pt-5 sm:flex-row"><Button variant="secondary" onClick={saveDraft}>Save draft</Button><Button disabled={creating} onClick={createResume}><FileText className="size-4" />{creating ? "Creating…" : "Create resume"}</Button></div>
         </Card>
       </div>
 
