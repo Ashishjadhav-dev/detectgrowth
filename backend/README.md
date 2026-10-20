@@ -53,6 +53,48 @@ done
 
 The API listens on `http://localhost:8080` by default. Set `PORT` to change the port.
 
+## Deploy from this repository
+
+The backend does not need a separate repository. Deploy the `backend/` directory
+as a separate service from the same GitHub repository used by Vercel.
+
+For Railway, create a service from this repository and set its root directory
+to `backend`. Railway can build the included `Dockerfile`, or use these native
+commands:
+
+```text
+Build: go build -o app ./cmd/server
+Start: ./app
+```
+
+Add PostgreSQL and Redis services in the same Railway project. Configure these
+variables on the Go API service:
+
+```env
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+REDIS_URL=${{Redis.REDIS_URL}}
+JWT_SECRET=<long-random-secret>
+FRONTEND_ORIGIN=https://detectgrowth.vercel.app
+COOKIE_SECURE=true
+APP_ENV=production
+APP_URL=https://detectgrowth.vercel.app
+RESEND_API_KEY=<optional-resend-key>
+RESEND_FROM_EMAIL=DetectGrowth <security@yourdomain.com>
+```
+
+Run the migrations once against the production PostgreSQL database, from the
+repository root:
+
+```bash
+for migration in backend/migrations/*.sql; do
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+done
+```
+
+Generate a public domain for the Go service, then set that URL in Vercel as
+`NEXT_PUBLIC_API_URL` without a trailing slash. The frontend and backend can
+therefore be deployed independently while remaining in this same repository.
+
 ## Example
 
 ```bash

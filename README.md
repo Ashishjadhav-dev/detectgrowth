@@ -47,6 +47,11 @@ For a Vercel deployment, set `NEXT_PUBLIC_API_URL` to the publicly reachable
 backend URL. Vercel deploys the Next.js frontend; PostgreSQL, Redis, and the Go
 API/worker need to run on a separate host or managed service.
 
+The frontend and backend already live in this same repository. Deploy the
+repository root to Vercel, and deploy the `backend/` directory as a separate Go
+service using `backend/Dockerfile`. See `backend/README.md` for the production
+environment variables and migration command.
+
 ## Quality checks
 ```bash
 npm run typecheck
