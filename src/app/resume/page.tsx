@@ -1,12 +1,14 @@
 "use client";
 
 import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useId, useState } from "react";
-import { Check, FileText, Trash2, UploadCloud } from "lucide-react";
+import { Check, CheckCircle2, FileText, Lightbulb, Palette, Sparkles, Trash2, UploadCloud } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+
+type ResumeTheme = "classic" | "modern" | "minimal";
 
 type ResumeDraft = {
   name: string;
@@ -20,6 +22,7 @@ type ResumeDraft = {
   education: string;
   skills: string;
   projects: string;
+  theme: ResumeTheme;
 };
 
 type AtsAnalysis = {
@@ -35,16 +38,45 @@ function escapeHtml(value: string) {
 
 function resumeDocument(draft: ResumeDraft) {
   const lines = (value: string) => escapeHtml(value).replace(/\n/g, "<br />");
-  return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(draft.name || "Resume")}</title><style>body{margin:0;background:#f4f2ee;color:#242420;font-family:Arial,Helvetica,sans-serif}.resume{box-sizing:border-box;max-width:850px;margin:32px auto;padding:48px 56px;background:#fff}h1{margin:0;font-size:32px}h2{margin:28px 0 8px;padding-bottom:6px;border-bottom:2px solid #5f6f52;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#5f6f52}h3{margin:12px 0 4px;font-size:16px}p{margin:5px 0;font-size:14px;line-height:1.6}.headline{margin-top:6px;color:#5f6f52;font-size:16px}.contact{margin-top:14px;color:#67675f;font-size:12px}.block{white-space:normal}@media print{body{background:#fff}.resume{margin:0;max-width:none;box-shadow:none}}</style></head><body><main class="resume"><h1>${escapeHtml(draft.name || "Your Name")}</h1><p class="headline">${escapeHtml(draft.headline || "Professional headline")}</p><p class="contact">${[draft.email, draft.phone, draft.location, draft.website].filter(Boolean).map(escapeHtml).join(" · ")}</p>${draft.summary ? `<section><h2>Profile</h2><p class="block">${lines(draft.summary)}</p></section>` : ""}${draft.experience ? `<section><h2>Experience</h2><p class="block">${lines(draft.experience)}</p></section>` : ""}${draft.education ? `<section><h2>Education</h2><p class="block">${lines(draft.education)}</p></section>` : ""}${draft.skills ? `<section><h2>Skills</h2><p class="block">${lines(draft.skills)}</p></section>` : ""}${draft.projects ? `<section><h2>Projects & achievements</h2><p class="block">${lines(draft.projects)}</p></section>` : ""}</main></body></html>`;
+  const accent = draft.theme === "modern" ? "#567a91" : draft.theme === "minimal" ? "#242420" : "#5f6f52";
+  const heading = draft.theme === "modern" ? "#1f3b4d" : "#242420";
+  return `<!doctype html><html><head><meta charset="utf-8" /><title>${escapeHtml(draft.name || "Resume")}</title><style>body{margin:0;background:#f4f2ee;color:${heading};font-family:Arial,Helvetica,sans-serif}.resume{box-sizing:border-box;max-width:850px;margin:32px auto;padding:48px 56px;background:#fff}h1{margin:0;font-size:32px}h2{margin:28px 0 8px;padding-bottom:6px;border-bottom:2px solid ${accent};font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:${accent}}h3{margin:12px 0 4px;font-size:16px}p{margin:5px 0;font-size:14px;line-height:1.6}.headline{margin-top:6px;color:${accent};font-size:16px}.contact{margin-top:14px;color:#67675f;font-size:12px}.block{white-space:normal}@media print{body{background:#fff}.resume{margin:0;max-width:none;box-shadow:none}}</style></head><body><main class="resume"><h1>${escapeHtml(draft.name || "Your Name")}</h1><p class="headline">${escapeHtml(draft.headline || "Professional headline")}</p><p class="contact">${[draft.email, draft.phone, draft.location, draft.website].filter(Boolean).map(escapeHtml).join(" · ")}</p>${draft.summary ? `<section><h2>Profile</h2><p class="block">${lines(draft.summary)}</p></section>` : ""}${draft.experience ? `<section><h2>Experience</h2><p class="block">${lines(draft.experience)}</p></section>` : ""}${draft.education ? `<section><h2>Education</h2><p class="block">${lines(draft.education)}</p></section>` : ""}${draft.skills ? `<section><h2>Skills</h2><p class="block">${lines(draft.skills)}</p></section>` : ""}${draft.projects ? `<section><h2>Projects & achievements</h2><p class="block">${lines(draft.projects)}</p></section>` : ""}</main></body></html>`;
 }
 
 const emptyDraft: ResumeDraft = {
   name: "", headline: "", email: "", phone: "", location: "", website: "",
-  summary: "", experience: "", education: "", skills: "", projects: "",
+  summary: "", experience: "", education: "", skills: "", projects: "", theme: "classic",
 };
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="block text-sm font-medium text-ink"><span>{label}</span><span className="mt-2 block">{children}</span></label>;
+}
+
+const themeOptions: { id: ResumeTheme; label: string; description: string; swatch: string }[] = [
+  { id: "classic", label: "Classic", description: "ATS-safe green accents", swatch: "bg-primary" },
+  { id: "modern", label: "Modern", description: "Confident blue details", swatch: "bg-sky-700" },
+  { id: "minimal", label: "Minimal", description: "Sharp monochrome layout", swatch: "bg-ink" },
+];
+
+function ResumePreview({ draft }: { draft: ResumeDraft }) {
+  const accent = draft.theme === "modern" ? "text-sky-800 border-sky-700" : draft.theme === "minimal" ? "text-ink border-ink" : "text-primary border-primary";
+  const pageTone = draft.theme === "modern" ? "bg-sky-50/30" : draft.theme === "minimal" ? "bg-stone-50" : "bg-primary-soft/20";
+  const section = (title: string, value: string) => value ? <section className="mt-5" key={title}><h4 className={`border-b pb-1 text-[9px] font-bold uppercase tracking-[0.16em] ${accent}`}>{title}</h4><p className="mt-2 whitespace-pre-line text-[10px] leading-5 text-slate-700">{value}</p></section> : null;
+
+  return <div className={`overflow-hidden rounded-2xl border border-border shadow-sm ${pageTone}`}>
+    <div className="flex items-center justify-between border-b border-border bg-white/80 px-4 py-3"><div className="flex items-center gap-2"><span className="size-2 rounded-full bg-primary" /><span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Live preview</span></div><span className="text-[10px] text-subtle">Updates as you type</span></div>
+    <div className="m-3 min-h-[470px] rounded-lg bg-white p-5 shadow-sm sm:m-5 sm:p-7">
+      <h3 className="text-xl font-bold tracking-tight text-slate-900">{draft.name || "Your Name"}</h3>
+      <p className={`mt-1 text-xs font-medium ${draft.theme === "modern" ? "text-sky-700" : draft.theme === "minimal" ? "text-slate-700" : "text-primary"}`}>{draft.headline || "Your professional headline"}</p>
+      <p className="mt-2 truncate text-[9px] text-slate-500">{[draft.email, draft.phone, draft.location, draft.website].filter(Boolean).join(" · ") || "email · phone · location · portfolio"}</p>
+      {section("Profile", draft.summary)}
+      {section("Experience", draft.experience)}
+      {section("Education", draft.education)}
+      {section("Skills", draft.skills)}
+      {section("Projects & achievements", draft.projects)}
+      {!draft.summary && !draft.experience && !draft.education && !draft.skills && !draft.projects ? <div className="mt-20 text-center text-[10px] text-slate-400">Your polished CV will appear here.</div> : null}
+    </div>
+  </div>;
 }
 
 export default function ResumeWorkspace() {
@@ -228,6 +260,36 @@ export default function ResumeWorkspace() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><FileText className="size-5" /></span><div><h2 className="section-title">Create your resume</h2><p className="meta mt-1">Add the details employers need to know.</p></div></div>
             {saved ? <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700"><Check className="size-3.5" />Draft saved</span> : null}
+          </div>
+
+          <div className="mt-6 grid gap-5 xl:grid-cols-[1.05fr_.95fr]">
+            <div className="space-y-4">
+              <section className="rounded-2xl border border-border bg-elevated/50 p-4">
+                <div className="flex items-start gap-3"><span className="grid size-9 place-items-center rounded-xl bg-primary-soft text-primary"><Palette className="size-4" /></span><div><h3 className="text-sm font-semibold text-ink">Choose your resume style</h3><p className="mt-1 text-xs text-muted">Pick a polished layout. Your content stays ATS-friendly.</p></div></div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  {themeOptions.map((theme) => <button key={theme.id} type="button" aria-pressed={draft.theme === theme.id} onClick={() => update("theme", theme.id)} className={`rounded-xl border p-3 text-left transition ${draft.theme === theme.id ? "border-primary bg-white shadow-sm ring-2 ring-primary/15" : "border-border bg-white/60 hover:border-primary/40"}`}><span className={`mb-2 block size-5 rounded-full ${theme.swatch}`} /><span className="block text-xs font-semibold text-ink">{theme.label}</span><span className="mt-0.5 block text-[10px] text-muted">{theme.description}</span></button>)}
+                </div>
+              </section>
+
+              {(() => {
+                const completed = [draft.name, draft.headline, draft.email, draft.summary, draft.experience, draft.education, draft.skills].filter(Boolean).length;
+                const completion = Math.round((completed / 7) * 100);
+                const suggestions = [
+                  { label: "Professional headline", field: "headline" as const, value: "Frontend Engineer | React, TypeScript & Product UX" },
+                  { label: "Executive summary", field: "summary" as const, value: "Frontend Engineer with 3+ years of experience building accessible, high-performing web products with React and TypeScript. Skilled at translating complex workflows into clear user experiences and partnering with product teams to ship measurable improvements." },
+                  { label: "Core skills", field: "skills" as const, value: "React, TypeScript, Next.js, JavaScript, HTML, CSS, Tailwind CSS, REST APIs, Git, Testing" },
+                  { label: "Experience starter", field: "experience" as const, value: "Frontend Engineer · DetectGrowth · 2023–Present\n• Built responsive React and TypeScript workflows used by 10,000+ users.\n• Improved page performance by 35% by reducing bundle size and optimizing data fetching.\n• Partnered with design and product to ship 12 customer-facing features." },
+                ];
+                return <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h3 className="text-sm font-semibold text-ink">Build a stronger profile</h3></div><span className="text-xs font-semibold text-primary">{completion}% complete</span></div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-elevated"><div className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out" style={{ width: `${completion}%` }} /></div>
+                  <p className="mt-2 text-xs text-muted">Use your real name, job titles, dates, and measurable results. The suggestions below are editable starting points.</p>
+                  <div className="mt-4 space-y-2">{suggestions.map((suggestion) => draft[suggestion.field] ? null : <button key={suggestion.field} type="button" onClick={() => update(suggestion.field, suggestion.value)} className="flex w-full items-center gap-3 rounded-xl border border-border bg-elevated/40 px-3 py-2.5 text-left transition hover:border-primary/40 hover:bg-primary-soft/30"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary"><Lightbulb className="size-3.5" /></span><span className="min-w-0 flex-1"><span className="block text-xs font-medium text-ink">Add {suggestion.label}</span><span className="block truncate text-[10px] text-muted">Use a realistic starting point and personalize it</span></span><span className="text-[10px] font-semibold text-primary">Add</span></button>)}</div>
+                  {completion === 100 ? <p className="mt-4 flex items-center gap-2 text-xs font-medium text-green-700"><CheckCircle2 className="size-4" />Great — your essential profile details are ready.</p> : null}
+                </section>;
+              })()}
+            </div>
+            <div className="xl:sticky xl:top-24 xl:self-start"><ResumePreview draft={draft} /></div>
           </div>
 
           <div className="mt-6 space-y-6">
