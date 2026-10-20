@@ -78,6 +78,7 @@ func main() {
 	mux.HandleFunc("GET /api/v1/health", healthHandler)
 	mux.HandleFunc("POST /api/v1/auth/sign-up", api.signUp)
 	mux.HandleFunc("POST /api/v1/auth/sign-in", api.signIn)
+	mux.HandleFunc("POST /api/v1/auth/demo", api.demoSignIn)
 	mux.HandleFunc("POST /api/v1/auth/sign-out", api.signOut)
 	mux.HandleFunc("POST /api/v1/auth/request-password-reset", api.requestPasswordReset)
 	mux.HandleFunc("POST /api/v1/auth/verify-password-reset", api.verifyPasswordReset)
@@ -136,6 +137,7 @@ type authUser struct {
 	Email     string         `json:"email"`
 	Name      string         `json:"name"`
 	Workspace map[string]any `json:"workspace"`
+	IsDemo    bool           `json:"isDemo"`
 }
 
 func (a *app) signUp(w http.ResponseWriter, r *http.Request) {
@@ -219,6 +221,55 @@ func (a *app) signIn(w http.ResponseWriter, r *http.Request) {
 	}
 	setSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, apiResponse{Data: authUser{ID: userID, Email: email, Name: name, Workspace: map[string]any{"id": workspaceID, "name": workspaceName}}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) demoSignIn(w http.ResponseWriter, r *http.Request) {
+	const email = "demo@detectgrowth.com"
+	const demoPassword = "detectgrowth123"
+	const name = "Demo User"
+	tx, err := a.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to start demo session.")
+		return
+	}
+	defer tx.Rollback()
+	var userID string
+	err = tx.QueryRowContext(r.Context(), `SELECT id::text FROM users WHERE email = $1`, email).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		hash, hashErr := bcrypt.GenerateFromPassword([]byte(demoPassword), bcrypt.DefaultCost)
+		if hashErr != nil {
+			writeError(w, r, http.StatusInternalServerError, "AUTH_ERROR", "Unable to start demo session.")
+			return
+		}
+		err = tx.QueryRowContext(r.Context(), `INSERT INTO users (email, name, password_hash, email_verified_at) VALUES ($1, $2, $3, now()) RETURNING id::text`, email, name, string(hash)).Scan(&userID)
+	}
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to create demo account.")
+		return
+	}
+	var workspaceName string
+	if err = tx.QueryRowContext(r.Context(), `SELECT name FROM workspaces WHERE id = $1`, a.workspaceID).Scan(&workspaceName); err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load demo workspace.")
+		return
+	}
+	var roleID string
+	err = tx.QueryRowContext(r.Context(), `SELECT id::text FROM roles WHERE workspace_id = $1 AND name = 'owner'`, a.workspaceID).Scan(&roleID)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = tx.QueryRowContext(r.Context(), `INSERT INTO roles (workspace_id, name, is_system) VALUES ($1, 'owner', true) RETURNING id::text`, a.workspaceID).Scan(&roleID)
+	}
+	if err == nil {
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO workspace_memberships (workspace_id, user_id, role_id) VALUES ($1, $2, $3) ON CONFLICT (workspace_id, user_id) DO NOTHING`, a.workspaceID, userID, roleID)
+	}
+	token, tokenHash, tokenErr := newSessionToken()
+	if err == nil && tokenErr == nil {
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO sessions (user_id, workspace_id, token_hash, expires_at) VALUES ($1, $2, $3, now() + interval '30 days')`, userID, a.workspaceID, tokenHash)
+	}
+	if err != nil || tokenErr != nil || tx.Commit() != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to start demo session.")
+		return
+	}
+	setSessionCookie(w, token)
+	writeJSON(w, http.StatusOK, apiResponse{Data: authUser{ID: userID, Email: email, Name: name, Workspace: map[string]any{"id": a.workspaceID, "name": workspaceName}, IsDemo: true}, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
 func (a *app) requestPasswordReset(w http.ResponseWriter, r *http.Request) {

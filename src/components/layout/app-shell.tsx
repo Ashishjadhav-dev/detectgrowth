@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import type { SessionUser } from "@/lib/auth";
+import { authRequest } from "@/lib/auth";
 import { SessionContext } from "@/components/auth/session-provider";
 import { ToastProvider } from "@/components/ui/toast";
 import { BrandLoader } from "@/components/ui/brand-loader";
@@ -24,13 +25,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     let cancelled = false;
     const check = async () => {
       try {
-        const response = await fetch("/api/auth/session", { cache: "no-store" });
-        if (!response.ok) throw new Error("Session unavailable");
-        const data = await response.json();
+        const data = await authRequest("session");
         if (cancelled) return;
-        if (!data.user && !pathname.startsWith("/auth")) { window.location.replace("/auth"); return; }
-        if (data.user && pathname.startsWith("/auth")) { window.location.replace("/dashboard"); return; }
-        setUser(data.user);
+        const user = data as SessionUser | null;
+        if (!user && !pathname.startsWith("/auth")) { window.location.replace("/auth"); return; }
+        if (user && pathname.startsWith("/auth")) { window.location.replace("/dashboard"); return; }
+        setUser(user);
         setSessionError(false);
         setAuthReady(true);
       } catch { if (!cancelled) setSessionError(true); }

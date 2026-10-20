@@ -21,6 +21,7 @@ export default function Page() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [resetStep, setResetStep] = useState<"email" | "code" | "password">("email");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -41,7 +42,10 @@ export default function Page() {
         setError("Please enter a valid email address.");
         return;
       }
-      setResetStep("code");
+      setLoading(true);
+      try { await authRequest("request-password-reset", { email: email.trim() }); setResetStep("code"); }
+      catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Unable to send the verification code."); }
+      finally { setLoading(false); }
       return;
     }
     if (mode === "reset-password" && resetStep === "code") {
@@ -49,7 +53,15 @@ export default function Page() {
         setError("Enter the verification code sent to your email.");
         return;
       }
-      setResetStep("password");
+      setLoading(true);
+      try {
+        const result = await authRequest("verify-password-reset", { email: email.trim(), code: recoveryCode.trim() });
+        const token = (result as { resetToken?: string } | null)?.resetToken;
+        if (!token) throw new Error("Unable to verify the code.");
+        setResetToken(token);
+        setResetStep("password");
+      } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Unable to verify the code."); }
+      finally { setLoading(false); }
       return;
     }
     if (mode === "reset-password" && resetStep === "password" && password !== confirmPassword) {
@@ -72,8 +84,12 @@ export default function Page() {
     }
     setLoading(true);
     try {
+      if (mode === "reset-password") {
+        await authRequest("reset-password", { resetToken, password });
+        setRecovered(true); setMode("sign-in"); setResetStep("email"); setRecoveryCode(""); setResetToken(""); setPassword(""); setConfirmPassword("");
+        return;
+      }
       await authRequest(mode, { name, email, password, recoveryCode });
-      if (mode === "reset-password") { setRecovered(true); setMode("sign-in"); setResetStep("email"); setPassword(""); setConfirmPassword(""); return; }
       window.location.assign(mode === "sign-up" ? "/onboarding" : "/dashboard");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to sign in.");
@@ -97,7 +113,7 @@ export default function Page() {
           {mode === "sign-up" ? <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Name <span className="text-danger" aria-hidden="true">*</span></span><Input className="h-11 rounded-lg border-neutral-200/80 bg-[#faf9f6] focus:border-primary focus:ring-2 focus:ring-primary/10 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#faf9f6]" required minLength={2} maxLength={80} autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label> : null}
           {mode === "reset-password" && resetStep === "code" ? <label className="block text-sm"><span className="mb-2 block font-medium text-ink">Verification code <span className="text-danger" aria-hidden="true">*</span></span><Input className="h-11 rounded-lg border-neutral-200/80 bg-[#faf9f6] tracking-[0.2em] focus:border-primary focus:ring-2 focus:ring-primary/10 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#faf9f6]" required value={recoveryCode} onChange={(event) => setRecoveryCode(event.target.value)} autoComplete="one-time-code" placeholder="Enter your code" /></label> : null}
           {mode !== "reset-password" || resetStep !== "code" ? <label className="block"><span className="mb-2 block text-sm font-medium text-ink">{mode === "reset-password" ? "Email address" : "Work email"} <span className="text-danger" aria-hidden="true">*</span></span><Input className="h-11 rounded-lg border-neutral-200/80 bg-[#faf9f6] focus:border-primary focus:ring-2 focus:ring-primary/10 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#faf9f6]" required autoComplete="email" type="email" value={email} readOnly={mode === "reset-password" && resetStep === "password"} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label> : null}
-          {(mode !== "reset-password" || resetStep === "password") ? <label className="block"><span className="mb-2 flex items-center justify-between text-sm font-medium text-ink"><span>{mode === "reset-password" ? "New password" : "Password"} <span className="text-danger" aria-hidden="true">*</span></span>{isSignIn ? <button type="button" disabled={loading} className="text-xs font-medium text-primary hover:text-primary-hover hover:underline disabled:pointer-events-none disabled:opacity-50" onClick={() => { setMode("reset-password"); setResetStep("email"); setRecoveryCode(""); setError(""); setRecovered(false); }}>Forgot password?</button> : null}</span><div className="relative"><Input className="h-11 rounded-lg border-neutral-200/80 bg-[#faf9f6] pr-10 focus:border-primary focus:ring-2 focus:ring-primary/10 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#faf9f6]" required minLength={8} autoComplete={isSignIn ? "current-password" : "new-password"} type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "reset-password" ? "Create a new password" : "Your password"} /><button type="button" disabled={loading} onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute right-2 top-1/2 grid h-9 w-8 -translate-y-1/2 place-items-center rounded-md text-muted transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/10 disabled:pointer-events-none disabled:opacity-50">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></div>{mode === "sign-up" || mode === "reset-password" ? <p className="mt-2 text-xs text-muted">Use at least 8 characters.</p> : null}</label> : null}
+          {(mode !== "reset-password" || resetStep === "password") ? <label className="block"><span className="mb-2 flex items-center justify-between text-sm font-medium text-ink"><span>{mode === "reset-password" ? "New password" : "Password"} <span className="text-danger" aria-hidden="true">*</span></span>{isSignIn ? <button type="button" disabled={loading} className="text-xs font-medium text-primary hover:text-primary-hover hover:underline disabled:pointer-events-none disabled:opacity-50" onClick={() => { setMode("reset-password"); setResetStep("email"); setRecoveryCode(""); setResetToken(""); setError(""); setRecovered(false); }}>Forgot password?</button> : null}</span><div className="relative"><Input className="h-11 rounded-lg border-neutral-200/80 bg-[#faf9f6] pr-10 focus:border-primary focus:ring-2 focus:ring-primary/10 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#faf9f6]" required minLength={8} autoComplete={isSignIn ? "current-password" : "new-password"} type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={mode === "reset-password" ? "Create a new password" : "Your password"} /><button type="button" disabled={loading} onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute right-2 top-1/2 grid h-9 w-8 -translate-y-1/2 place-items-center rounded-md text-muted transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/10 disabled:pointer-events-none disabled:opacity-50">{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></div>{mode === "sign-up" || mode === "reset-password" ? <p className="mt-2 text-xs text-muted">Use at least 8 characters.</p> : null}</label> : null}
           {mode === "reset-password" && resetStep === "password" ? <label className="block"><span className="mb-2 block text-sm font-medium text-ink">Confirm new password <span className="text-danger" aria-hidden="true">*</span></span><Input className="h-11 rounded-lg border-neutral-200/80 bg-[#faf9f6] focus:border-primary focus:ring-2 focus:ring-primary/10 [&:-webkit-autofill]:shadow-[inset_0_0_0px_1000px_#faf9f6]" required minLength={8} autoComplete="new-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Re-enter your new password" /></label> : null}
           {error ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
           <Button className="h-11 w-full bg-primary text-white hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30" disabled={loading}>{loading ? <LoadingDots /> : mode === "reset-password" ? resetStep === "email" ? "Send verification code" : resetStep === "code" ? "Continue" : "Update password" : isSignIn ? "Sign in" : "Create account"}</Button>
