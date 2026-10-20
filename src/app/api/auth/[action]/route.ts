@@ -4,10 +4,13 @@ import { credentials, newSession, publicUser, tokenHash, transact, verify } from
 
 export const runtime = "nodejs";
 const cookieName = "detectgrowth_session";
+const guestCookieName = "detectgrowth_guest";
+const guestUser = { id: "guest-demo", name: "Demo User", email: "demo@detectgrowth.com", workspace: "Demo Workspace", isDemo: true };
 const fail = (message: string, status = 400) => NextResponse.json({ error: message }, { status });
 const attempts = new Map<string, { count: number; until: number }>();
 
 export async function GET(request: NextRequest) {
+  if (request.cookies.get(guestCookieName)?.value === "1") return NextResponse.json({ user: guestUser }, { headers: { "Cache-Control": "no-store" } });
   const token = request.cookies.get(cookieName)?.value;
   const user = token ? await transact((db) => db.sessions[tokenHash(token)]?.user ?? null) : null;
   return NextResponse.json({ user }, { headers: { "Cache-Control": "no-store" } });
@@ -24,6 +27,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
       if (token) await transact((db) => { delete db.sessions[tokenHash(token)]; });
       const response = NextResponse.json({ user: null });
       response.cookies.delete(cookieName);
+      response.cookies.delete(guestCookieName);
       return response;
     }
     const input = action === "demo" ? {} : await request.json();
@@ -69,6 +73,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
       });
     }
     const demo = action === "demo" || (action === "sign-in" && email === "demo@detectgrowth.com" && ["detectgrowth123", "Demo@123"].includes(password));
+    if (demo) {
+      const response = NextResponse.json({ user: guestUser });
+      response.cookies.set(guestCookieName, "1", { httpOnly: true, sameSite: "lax", secure: request.nextUrl.protocol === "https:", path: "/", maxAge: 7 * 86400 });
+      return response;
+    }
     if (!demo && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || password.length > 128)) return fail("Enter a valid email and a password between 8 and 128 characters.");
     const result = await transact((db) => {
       let user;

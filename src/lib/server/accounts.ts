@@ -8,17 +8,33 @@ type User = { id: string; name: string; email: string; workspace: string; isDemo
 type Account = User & { hash: string; salt: string; recoveryHash?: string };
 type Session = { user: User; expires: number };
 type Database = { accounts: Account[]; sessions: Record<string, Session>; workspaces?: Record<string, Record<string, unknown>> };
-const shared = globalThis as typeof globalThis & { workspaceWriteQueue?: Promise<unknown> };
+const shared = globalThis as typeof globalThis & { workspaceWriteQueue?: Promise<unknown>; memoryDatabase?: Database; persistenceDisabled?: boolean };
 export function transact<T>(operation: (db: Database) => T | Promise<T>): Promise<T> {
   const result = (shared.workspaceWriteQueue ?? Promise.resolve()).then(async () => {
-    await mkdir(directory, { recursive: true, mode: 0o700 });
     let db: Database;
-    try { db = JSON.parse(await readFile(path.join(directory, "accounts.json"), "utf8")); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; db = { accounts: [], sessions: {} }; }
+    if (shared.persistenceDisabled && shared.memoryDatabase) {
+      db = shared.memoryDatabase;
+    } else {
+      try {
+        await mkdir(directory, { recursive: true, mode: 0o700 });
+        db = JSON.parse(await readFile(path.join(directory, "accounts.json"), "utf8"));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !shared.persistenceDisabled) shared.persistenceDisabled = true;
+        db = shared.memoryDatabase ?? { accounts: [], sessions: {} };
+      }
+    }
     for (const [key, session] of Object.entries(db.sessions)) if (session.expires <= Date.now()) delete db.sessions[key];
     const value = await operation(db);
-    await writeFile(path.join(directory, "accounts.tmp"), JSON.stringify(db), { mode: 0o600 });
-    await rename(path.join(directory, "accounts.tmp"), path.join(directory, "accounts.json"));
+    shared.memoryDatabase = db;
+    if (!shared.persistenceDisabled) {
+      try {
+        await mkdir(directory, { recursive: true, mode: 0o700 });
+        await writeFile(path.join(directory, "accounts.tmp"), JSON.stringify(db), { mode: 0o600 });
+        await rename(path.join(directory, "accounts.tmp"), path.join(directory, "accounts.json"));
+      } catch {
+        shared.persistenceDisabled = true;
+      }
+    }
     return value;
   });
   shared.workspaceWriteQueue = result.catch(() => {});
