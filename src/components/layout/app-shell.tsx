@@ -28,6 +28,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         const data = await authRequest("session");
         if (cancelled) return;
         const user = data as SessionUser | null;
+        const signedOut = window.sessionStorage.getItem("detectgrowth-signed-out") === "1";
+        if (signedOut && pathname.startsWith("/auth")) {
+          window.sessionStorage.removeItem("detectgrowth-signed-out");
+          setUser(null);
+          setSessionError(false);
+          setAuthReady(true);
+          return;
+        }
         if (!user && !pathname.startsWith("/auth")) { window.location.replace("/auth"); return; }
         if (user && pathname.startsWith("/auth")) { window.location.replace("/dashboard"); return; }
         setUser(user);

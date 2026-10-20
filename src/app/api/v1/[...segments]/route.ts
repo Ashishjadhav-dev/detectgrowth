@@ -21,6 +21,46 @@ async function handle(request: NextRequest, context: { params: Promise<{ segment
     const ok = (data: unknown) => NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } });
     workspace.bookmarks ??= [];
     const fail = (message: string, status = 400) => NextResponse.json({ error: { message } }, { status });
+    if (segments[0] === "job-hunt") {
+      const jobHunt = workspace.jobHunt as { resumeText?: string; matches?: Row[]; applications?: Row[]; lastScanAt?: string } ?? {};
+      jobHunt.matches ??= [];
+      jobHunt.applications ??= [];
+      workspace.jobHunt = jobHunt;
+      if (segments.length === 1 && method === "GET") return ok({ matches: jobHunt.matches, applications: jobHunt.applications, lastScanAt: jobHunt.lastScanAt ?? null });
+      if (segments[1] === "scan" && method === "POST") {
+        const resumeText = typeof input.resumeText === "string" ? input.resumeText.slice(0, 50000) : "";
+        const jobs = Array.isArray(input.jobs) ? input.jobs.slice(0, 100) as Row[] : [];
+        if (resumeText.trim().length < 20) return fail("Add resume details before scanning for matches.");
+        const stopWords = new Set("and the with from for your this that into have will are our you job role using their they about looking years work team more than not all can has its are but how what who where when able across through including other based remote hybrid onsite experience skills".split(/\s+/));
+        const words = (value: string) => [...new Set(value.toLowerCase().replace(/[^a-z0-9+#.\s-]/g, " ").split(/\s+/).filter((word) => word.length > 2 && !stopWords.has(word)))];
+        const resumeWords = new Set(words(resumeText));
+        jobHunt.matches = jobs.map((job) => {
+          const content = `${String(job.title ?? "")} ${String(job.description ?? "")} ${String(job.tags ?? "")} ${String(job.department ?? "")}`;
+          const jobWords = words(content);
+          const matchedKeywords = jobWords.filter((word) => resumeWords.has(word)).slice(0, 12);
+          const missingKeywords = jobWords.filter((word) => !resumeWords.has(word)).slice(0, 8);
+          const titleWords = words(String(job.title ?? ""));
+          const titleMatches = titleWords.filter((word) => resumeWords.has(word)).length;
+          const score = Math.min(99, Math.max(35, Math.round(35 + (matchedKeywords.length / Math.max(jobWords.length, 1)) * 150 + titleMatches * 8)));
+          const previous = jobHunt.matches?.find((match) => match.jobId === job.id);
+          return { id: previous?.id ?? crypto.randomUUID(), jobId: String(job.id), title: String(job.title ?? "Untitled role"), company: String(job.company ?? "Unknown company"), url: String(job.url ?? ""), location: String(job.location ?? "Location not listed"), workplace: String(job.workplace ?? "Unknown"), score, matchedKeywords, missingKeywords, postedAt: job.postedAt ?? null, status: jobHunt.applications?.some((application) => application.matchId === (previous?.id ?? "")) ? "applied" : "matched" };
+        }).filter((match) => match.score >= 55).sort((left, right) => right.score - left.score).slice(0, 30);
+        jobHunt.resumeText = resumeText;
+        jobHunt.lastScanAt = new Date().toISOString();
+        return ok({ matches: jobHunt.matches, applications: jobHunt.applications, lastScanAt: jobHunt.lastScanAt });
+      }
+      if (segments[1] === "applications" && method === "POST") {
+        const match = jobHunt.matches.find((item) => item.id === input.matchId);
+        if (!match) return fail("This job match is no longer available.", 404);
+        const existing = jobHunt.applications.find((item) => item.matchId === match.id);
+        if (existing) return ok(existing);
+        const application = { id: crypto.randomUUID(), matchId: match.id, jobId: match.jobId, title: match.title, company: match.company, url: match.url, appliedAt: new Date().toISOString(), status: "applied" };
+        jobHunt.applications.unshift(application);
+        match.status = "applied";
+        return ok(application);
+      }
+      return fail("Job hunt route not found.", 404);
+    }
     if (segments[0] === "settings" && segments[1] === "preferences") {
       if (method === "PATCH") workspace.preferences = { ...(workspace.preferences as object ?? {}), ...input };
       return ok(workspace.preferences ?? { alerts: true, digest: false, reminders: true, role: "Sales", onboarded: false });
