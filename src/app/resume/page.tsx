@@ -162,6 +162,8 @@ export default function ResumeWorkspace() {
     setAnalyzing(true);
     setAtsAnalysis(null);
     setUploadMessage("Resume uploaded to this workspace.");
+    const uploadedResume = { ...draft, name: draft.name || file.name.replace(/\.(pdf|docx?)$/i, ""), headline: draft.headline || file.name.replace(/\.(pdf|docx?)$/i, "") };
+    window.localStorage.setItem("detectgrowth-resume-draft", JSON.stringify(uploadedResume));
     window.setTimeout(() => {
       const result = {
         score: 78,
