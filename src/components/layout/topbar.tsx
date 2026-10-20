@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, Menu, Search, X } from "lucide-react";
+import { Bell, Menu, RefreshCw, Search, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/components/auth/session-provider";
@@ -48,6 +48,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
     <form className={`${searchOpen ? "flex" : "hidden md:flex"} relative min-w-0 flex-1 items-center`} onSubmit={(event) => { event.preventDefault(); if (query.trim()) { router.push(`/jobs?query=${encodeURIComponent(query.trim())}`); setSearchOpen(false); } }}><Search className="pointer-events-none absolute left-3 size-4 text-muted" /><input ref={search} aria-label="Global search" placeholder="Search jobs, companies, or tasks…" value={query} onChange={(event) => setQuery(event.target.value)} className="h-9 w-full rounded-xl border border-border bg-white pl-9 pr-3 text-sm text-ink outline-none transition placeholder:text-subtle focus:border-primary/40 focus:ring-2 focus:ring-primary/10" /></form>
     <Button variant="ghost" className="h-9 w-9 shrink-0 p-0 md:hidden" aria-label="Open search" onClick={() => { setSearchOpen((value) => !value); requestAnimationFrame(() => search.current?.focus()); }}><Search className="size-4" /></Button>
     <div className="hidden h-9 shrink-0 items-center gap-2 rounded-full border border-border bg-elevated px-3 text-xs font-medium text-muted lg:flex"><span className="size-2 rounded-full bg-emerald-500" />Job Search Mode</div>
+    {pathname === "/dashboard" ? <Button variant="ghost" className="h-9 w-9 shrink-0 p-0" aria-label="Refresh dashboard" onClick={() => window.dispatchEvent(new Event("dashboard-refresh"))}><RefreshCw className="size-4" /></Button> : null}
     <div ref={root} className="relative flex shrink-0 items-center gap-1.5">
       <Button variant="ghost" className="h-9 w-9 shrink-0 p-0" aria-label={`Notifications, ${unread.length} unread`} aria-expanded={panel === "notifications"} onClick={() => setPanel(panel === "notifications" ? null : "notifications")}><Bell className="size-4" />{unread.length ? <span className="absolute right-0 top-0 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-semibold text-white">{unread.length}</span> : null}</Button>
       <Button variant="ghost" className="h-9 gap-2 rounded-xl px-1.5 sm:px-2" aria-label="Account menu" aria-expanded={panel === "profile"} onClick={() => setPanel(panel === "profile" ? null : "profile")}><span className="grid size-7 place-items-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary">{initials}</span><span className="hidden max-w-28 truncate text-xs font-medium text-ink sm:block">{user?.name ?? "Demo User"}</span></Button>

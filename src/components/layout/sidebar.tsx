@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  Bell,
   BriefcaseBusiness,
   CheckCircle2,
   CircleUserRound,
@@ -36,7 +35,7 @@ const navGroups = [
     items: [
       ["Application Tracker", "/applications", ClipboardList],
       ["Jobs", "/jobs", BriefcaseBusiness],
-      ["Opportunities", "/opportunities", Radar],
+      // ["Opportunities", "/opportunities", Radar], // Growth opportunities — build later
     ],
   },
   {
@@ -47,13 +46,13 @@ const navGroups = [
       ["Targeted Matching", "/resume/match", Target],
     ],
   },
-  {
-    label: "PREP & NETWORK",
-    items: [
-      ["Interview Prep", "/interview-prep", MessageCircle],
-      ["Networking & Portals", "/networking", Globe2],
-    ],
-  },
+  // {
+  //   label: "PREP & NETWORK",
+  //   items: [
+  //     ["Interview Prep", "/interview-prep", MessageCircle],
+  //     ["Networking & Portals", "/networking", Globe2],
+  //   ],
+  // },
 ] as const;
 
 export function Sidebar({
@@ -148,26 +147,12 @@ export function Sidebar({
           ))}
         </nav>
 
-        <div className="mt-auto shrink-0 space-y-3 pt-4">
-          <Link href="/resume/upload" className={cn("flex items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(95,111,82,.16)] transition hover:bg-primary-hover", collapsed && "justify-center px-2")}><UploadCloud className="size-4 shrink-0" /><span className={collapsed ? "hidden" : "block"}>Upload resume</span></Link>
-          <div className={cn("rounded-2xl border border-border bg-elevated p-3 transition-[padding] duration-300", collapsed && "p-2")}>
-            <div className="flex items-center justify-between gap-2">
-              <div className={collapsed ? "hidden" : "block"}>
-                <div className="text-sm font-medium">{user?.workspace ?? "Workspace"}</div>
-                <div className="text-[11px] text-muted">Workspace active</div>
-              </div>
-              <Bell className={cn("size-4 text-subtle", collapsed && "mx-auto")} />
-            </div>
-            <div className={cn("mt-3 flex items-center gap-3", collapsed && "justify-center")}>
-              <div className="grid size-10 place-items-center rounded-full bg-white text-muted">
-                <CircleUserRound className="size-5" />
-              </div>
-              <div className={collapsed ? "hidden" : "min-w-0"}>
-                <div className="truncate text-sm font-medium">{user?.name ?? "Account"}</div>
-                <div className="text-[11px] text-muted">{user?.isDemo ? "Demo account" : "Workspace member"}</div>
-              </div>
-            </div>
-            <button type="button" onClick={signOut} title="Sign out" className={cn("mt-3 w-full rounded-xl border border-border bg-white px-3 py-2 text-left text-xs font-medium text-muted transition hover:border-danger/30 hover:text-danger", collapsed && "px-0 text-center")}>{collapsed ? "↪" : "Sign out"}</button>
+        <div className="mt-auto shrink-0 space-y-2 border-t border-border pt-3">
+          {/* <Link href="/resume/upload" className={cn("flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-muted transition hover:border-primary/30 hover:bg-primary-soft hover:text-primary", collapsed && "justify-center px-2")}><UploadCloud className="size-4 shrink-0" /><span className={collapsed ? "hidden" : "block"}>Upload resume</span></Link> */}
+          <div className={cn("flex items-center gap-3 rounded-xl border border-border bg-elevated p-2.5", collapsed && "justify-center p-2")}>
+            <div className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-muted"><CircleUserRound className="size-5" /></div>
+            <div className={collapsed ? "hidden" : "min-w-0 flex-1"}><div className="truncate text-sm font-medium">{user?.name ?? "Demo User"}</div><div className="truncate text-[11px] text-muted">{user?.workspace ?? "Demo Workspace"} · {user?.isDemo ? "Demo account" : "Workspace member"}</div></div>
+            <button type="button" onClick={signOut} title="Sign out" className={cn("shrink-0 rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition hover:bg-white hover:text-danger", collapsed && "hidden")}>Sign out</button>
           </div>
         </div>
       </aside>
@@ -220,27 +205,9 @@ export function Sidebar({
               ))}
             </nav>
 
-            <div className="mt-auto shrink-0 space-y-3 pt-4">
-              <Link href="/resume/upload" onClick={onClose} className="flex items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white"><UploadCloud className="size-4" />Upload resume</Link>
-          <div className="rounded-2xl border border-border bg-elevated p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-sm font-medium">{user?.workspace ?? "Workspace"}</div>
-                <div className="text-[11px] text-muted">Workspace active</div>
-                  </div>
-              <Bell className="size-4 text-subtle" />
-                </div>
-                <div className="mt-3 flex items-center gap-3">
-              <div className="grid size-10 place-items-center rounded-full bg-white text-muted">
-                    <CircleUserRound className="size-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{user?.name ?? "Account"}</div>
-                <div className="text-[11px] text-muted">{user?.isDemo ? "Demo account" : "Workspace member"}</div>
-                  </div>
-                </div>
-                <button type="button" onClick={signOut} className="mt-3 w-full rounded-xl border border-border bg-white px-3 py-2 text-left text-xs font-medium text-muted hover:text-ink">Sign out</button>
-              </div>
+            <div className="mt-auto shrink-0 space-y-2 border-t border-border pt-3">
+              {/* <Link href="/resume/upload" onClick={onClose} className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-muted hover:border-primary/30 hover:bg-primary-soft hover:text-primary"><UploadCloud className="size-4" />Upload resume</Link> */}
+              <div className="flex items-center gap-3 rounded-xl border border-border bg-elevated p-2.5"><div className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-muted"><CircleUserRound className="size-5" /></div><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{user?.name ?? "Demo User"}</div><div className="truncate text-[11px] text-muted">{user?.workspace ?? "Demo Workspace"} · {user?.isDemo ? "Demo account" : "Workspace member"}</div></div><button type="button" onClick={signOut} className="rounded-lg px-2 py-1.5 text-xs font-medium text-muted hover:bg-white hover:text-danger">Sign out</button></div>
             </div>
           </aside>
         </div>
