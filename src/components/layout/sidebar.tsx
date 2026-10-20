@@ -106,7 +106,7 @@ export function Sidebar({
         <div className="relative mb-5">
         <Link href="/dashboard" className={cn("flex items-center gap-3 rounded-2xl py-2 transition-[padding] duration-300", collapsed ? "justify-center px-1" : "px-3")} aria-label="DetectGrowth home">
           <span className={cn("block shrink-0 overflow-hidden", collapsed ? "h-10 w-10" : "w-[185px]")}>
-            <Image src="/detectgrowth-logo.png" alt="DetectGrowth" width={320} height={107} priority className={cn("max-w-none object-contain", collapsed ? "h-10 w-[185px] object-left" : "h-auto w-[185px]")} />
+            <Image src="/detectgrowth-logo.png" alt="DetectGrowth" width={320} height={107} priority className={cn("brand-logo max-w-none object-contain", collapsed ? "h-10 w-[185px] object-left" : "h-auto w-[185px]")} />
           </span>
           <span className={collapsed ? "hidden" : "sr-only"}>DetectGrowth</span>
         </Link>
@@ -161,7 +161,7 @@ export function Sidebar({
           <aside ref={drawer} role="dialog" aria-modal="true" aria-label="Navigation" className="absolute left-0 top-0 flex h-full w-[84vw] max-w-[320px] flex-col overflow-hidden bg-white px-3 py-4 text-ink shadow-[0_24px_80px_rgba(55,52,44,.18)]">
             <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl px-3 py-2">
               <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
-                <Image src="/detectgrowth-logo.png" alt="DetectGrowth" width={320} height={107} priority className="h-auto w-[185px] object-contain" />
+                <Image src="/detectgrowth-logo.png" alt="DetectGrowth" width={320} height={107} priority className="brand-logo h-auto w-[185px] object-contain" />
               </Link>
               <button aria-label="Close navigation" onClick={onClose} className="rounded-full border border-border p-2 text-muted">
                 <X className="size-4" />

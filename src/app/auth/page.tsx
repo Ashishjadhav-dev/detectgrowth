@@ -104,7 +104,7 @@ export default function Page() {
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 py-8">
       <Card className="w-full max-w-sm overflow-hidden border-neutral-200/80 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,.08)] sm:p-8">
         <div className="text-center">
-          <Image src="/detectgrowth-logo.png" alt="DetectGrowth" width={320} height={107} priority className="mx-auto h-auto w-[180px] object-contain" />
+          <Image src="/detectgrowth-logo.png" alt="DetectGrowth" width={320} height={107} priority className="brand-logo mx-auto h-auto w-[180px] object-contain" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight text-ink">{mode === "reset-password" ? "Reset your password" : isSignIn ? "Welcome back" : "Create your account"}</h1>
           <p className="mt-2 text-sm text-muted">{mode === "reset-password" ? resetStep === "email" ? "Enter your email and we’ll send you a verification code." : resetStep === "code" ? `Enter the code sent to ${email}.` : "Choose a new password for your account." : isSignIn ? "Sign in to your DetectGrowth workspace." : "Start your DetectGrowth workspace."}</p>
         </div>
