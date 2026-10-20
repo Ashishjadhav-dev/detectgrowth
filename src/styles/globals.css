@@ -38,3 +38,6 @@ button, input, select { font: inherit; }
   .table-cell { @apply px-4 py-3 text-sm; }
   .glass-card { @apply border border-border bg-white shadow-[0_1px_1px_rgba(55,52,44,.03),0_18px_50px_rgba(55,52,44,.05)]; }
 }
+
+.dashboard-compact > section:nth-of-type(n+3) > .rounded-2xl { padding: 1rem; }
+.dashboard-compact > section:nth-of-type(n+3) .mt-5 { margin-top: 1rem; }
