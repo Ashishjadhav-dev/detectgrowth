@@ -6,6 +6,7 @@ import { Topbar } from "./topbar";
 import type { SessionUser } from "@/lib/auth";
 import { SessionContext } from "@/components/auth/session-provider";
 import { ToastProvider } from "@/components/ui/toast";
+import { BrandLoader } from "@/components/ui/brand-loader";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -42,7 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   if (sessionError) return <div className="grid min-h-screen place-content-center gap-4 p-6 text-center"><p role="alert">Unable to load your session.</p><button onClick={() => window.location.reload()} className="text-primary">Try again</button></div>;
-  if (!authReady) return <div role="status" className="grid min-h-screen place-items-center bg-[#f7f8fc]">Loading workspace…</div>;
+  if (!authReady) return <BrandLoader />;
 
   if (shellHidden) {
     return <SessionContext.Provider value={user}><ToastProvider><div className="min-h-screen">{children}</div></ToastProvider></SessionContext.Provider>;
