@@ -95,6 +95,11 @@ Generate a public domain for the Go service, then set that URL in Vercel as
 `NEXT_PUBLIC_API_URL` without a trailing slash. The frontend and backend can
 therefore be deployed independently while remaining in this same repository.
 
+For a Vercel-only deployment, the Next.js API routes use Neon directly. Connect
+Neon to the Vercel project so `DATABASE_URL` is injected, then run
+`migrations/010_next_app_state.sql` once. Remove `NEXT_PUBLIC_API_URL` from the
+Vercel project environment; same-origin API routes are used in this mode.
+
 ## Example
 
 ```bash

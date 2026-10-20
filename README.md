@@ -52,6 +52,14 @@ repository root to Vercel, and deploy the `backend/` directory as a separate Go
 service using `backend/Dockerfile`. See `backend/README.md` for the production
 environment variables and migration command.
 
+### Vercel-only mode
+
+The Next.js API routes can run on Vercel without the Go service. Connect Neon
+Postgres through the Vercel Marketplace so `DATABASE_URL` is injected, then run
+`backend/migrations/010_next_app_state.sql` once against that database. Remove
+`NEXT_PUBLIC_API_URL` from Vercel so the browser uses same-origin `/api/auth`
+and `/api/v1` routes; do not leave it set to a local URL or `/a`.
+
 ## Quality checks
 ```bash
 npm run typecheck
