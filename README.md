@@ -57,44 +57,69 @@ The project demonstrates production-style frontend architecture, REST API design
 - React 19
 - TypeScript
 - Tailwind CSS
-- App Router
-- Server and Client Components
-- Responsive reusable UI components
+- Lucide icons
+- Reusable feature + UI component architecture
 
-### Backend
+## Run the frontend
 
-- Go
-- REST APIs
-- Server-side sessions
-- Background workers
-- PostgreSQL
-- pgx
+```bash
+npm install
+npm run dev
+```
 
-### Infrastructure
+Then open `http://localhost:3000`.
 
-- Docker Compose
-- PostgreSQL 16
-- Redis 7
-- Vercel-ready frontend deployment
+The frontend uses `NEXT_PUBLIC_API_URL` for API requests and defaults to
+`http://localhost:8080`. Copy `.env.example` to `.env.local` when connecting
+to a different backend.
 
-> Redis is provisioned as part of the local infrastructure and is intended for caching, rate limiting, distributed coordination, and other infrastructure use cases as the system evolves.
+## Run the backend locally
 
----
+The backend requires Go 1.22+, PostgreSQL, and Redis. Copy
+`backend/.env.example` to `backend/.env`, then start the infrastructure and
+apply the migrations:
 
-# Architecture
+```bash
+docker compose up -d postgres redis
+for migration in backend/migrations/*.sql; do
+  psql "postgres://detectgrowth:detectgrowth_local@localhost:5432/detectgrowth?sslmode=disable" -f "$migration"
+done
+```
 
-```mermaid
-flowchart LR
-    U[User] --> FE[Next.js Frontend]
+In separate terminals, start the API and optional signal worker:
 
-    FE --> API[Go REST API]
+```bash
+cd backend && go run ./cmd/server
+cd backend && go run ./cmd/worker
+```
 
-    API --> AUTH[Authentication / Sessions]
-    API --> DOMAIN[Domain Services]
+For a Vercel deployment, set `NEXT_PUBLIC_API_URL` to the publicly reachable
+backend URL. Vercel deploys the Next.js frontend; PostgreSQL, Redis, and the Go
+API/worker need to run on a separate host or managed service.
 
-    DOMAIN --> DB[(PostgreSQL)]
+## Quality checks
+```bash
+npm run typecheck
+npm run lint
+npm run build
 
-    WORKER[Background Worker] --> EXT[External Data Sources]
-    WORKER --> DB
+cd backend && go test ./...
+```
 
-    API -. caching / coordination .-> REDIS[(Redis)]
+## Structure
+- `src/app` routes
+- `src/components/ui` primitives
+- `src/components/layout` shell
+- `src/features` feature-level sections
+- `src/data` realistic mock data
+- `src/lib` shared utilities
+
+The UI keeps presentation data typed, with API-backed feature views and local
+fallback/demo content where the backend contract is not yet complete.
+
+## Backend contract
+- `docs/architecture/BACKEND_OVERVIEW.md`
+- `docs/architecture/API_CONTRACTS.md`
+- `docs/architecture/DATABASE_SCHEMA.md`
+
+These docs define the backend shape for the product so the implementation can stay consistent with the UI and multi-tenant model.
