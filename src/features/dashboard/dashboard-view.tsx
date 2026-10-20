@@ -1,148 +1,58 @@
 "use client";
-import { useSession } from "@/components/auth/session-provider";
 
 import Link from "next/link";
-import { GrowthChart } from "@/components/ui/growth-chart";
-import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowUpRight,
-  Bell,
-  CalendarDays,
-  Check,
-  CheckCircle2,
-  ChevronRight,
-  ChevronDown,
-  CircleDollarSign,
-  Clock3,
-  RefreshCw,
-  Target,
-  TrendingUp,
-  Users,
-  Zap,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, BriefcaseBusiness, CalendarDays, Check, ChevronRight, Clock3, FileText, MessageCircle, Plus, RefreshCw, Sparkles, TrendingUp, Users } from "lucide-react";
+import { useSession } from "@/components/auth/session-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Score } from "@/components/ui/score";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { getDashboardData, updateDashboardTask, type DashboardData } from "@/lib/api/dashboard";
 import { demoDashboard } from "@/data/demo";
-import { PageSkeleton } from "@/components/ui/page-skeleton";
 
-type DateRange = "7" | "30" | "90";
-const dateRangeLabels: Record<DateRange, string> = { "7": "Last 7 days", "30": "Last 30 days", "90": "Last 90 days" };
+const interviews = [
+  { time: "Today · 3:30 PM", company: "Northstar Labs", role: "Growth Marketing Manager", type: "Hiring manager round" },
+  { time: "Thu · 11:00 AM", company: "Atlas Commerce", role: "Product Marketing Lead", type: "Recruiter screen" },
+];
+const matchedJobs = [
+  { company: "Northstar Labs", role: "Growth Marketing Manager", location: "Remote · India", match: 92, tags: ["B2B SaaS", "Lifecycle"] },
+  { company: "Atlas Commerce", role: "Product Marketing Lead", location: "Bengaluru · Hybrid", match: 86, tags: ["Go-to-market", "Analytics"] },
+  { company: "Orbit Systems", role: "Senior Growth Associate", location: "Mumbai · Remote", match: 81, tags: ["Growth", "SQL"] },
+];
+const applicationStages = [
+  { label: "Saved / Drafts", count: 4, color: "#cbd5e1" },
+  { label: "Applied", count: 5, color: "#3b82f6" },
+  { label: "Interviewing", count: 2, color: "#f59e0b" },
+  { label: "Offer / Final", count: 1, color: "#10b981" },
+];
 
-function Kpi({ label, value, delta, icon, tone = "primary" }: { label: string; value: string; delta: string; icon: React.ReactNode; tone?: "primary" | "green" | "blue" | "amber" }) {
-  const tones = { primary: "bg-primary-soft text-primary", green: "bg-emerald-50 text-success", blue: "bg-blue-50 text-info", amber: "bg-amber-50 text-warning" };
-  return (
-    <Card className="glass-card min-w-0 p-4 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_16px_36px_rgba(91,53,230,.09)]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate text-xs font-medium text-muted">{label}</div>
-          <div className="mt-2 truncate text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{value}</div>
-          <div className="mt-1 flex items-center gap-1 text-xs font-medium text-success">{delta}</div>
-        </div>
-        <div className={`grid size-9 shrink-0 place-items-center rounded-xl ${tones[tone]}`}>{icon}</div>
-      </div>
-    </Card>
-  );
+function Metric({ label, value, detail, icon, tone }: { label: string; value: string; detail: string; icon: React.ReactNode; tone: string }) {
+  return <Card className="p-4 transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-medium text-muted">{label}</p><p className="mt-2 text-3xl font-semibold tracking-tight text-ink">{value}</p><p className="mt-1 text-xs text-muted">{detail}</p></div><span className={`grid size-10 place-items-center rounded-xl ${tone}`}>{icon}</span></div></Card>;
 }
 
 export function DashboardView() {
   const user = useSession();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [dateRange, setDateRange] = useState<DateRange>("30");
-  const [dateMenuOpen, setDateMenuOpen] = useState(false);
-  const [completedTasks, setCompletedTasks] = useState<string[]>(demoDashboard.tasks.filter((task) => task.completed).map((task) => task.id));
+  const [completedTasks, setCompletedTasks] = useState<string[]>([]);
+  const [jobDescription, setJobDescription] = useState("");
+  const [resumeScore, setResumeScore] = useState(85);
+  const load = () => { setLoading(true); getDashboardData().then(setDashboard).catch(() => setDashboard(demoDashboard)).finally(() => setLoading(false)); };
+  useEffect(() => { load(); try { const saved = window.sessionStorage.getItem("detectgrowth-ats-analysis"); if (saved) setResumeScore(JSON.parse(saved).score ?? 85); } catch { /* Keep demo score. */ } }, []);
   useEffect(() => { if (dashboard) setCompletedTasks(dashboard.tasks.filter((task) => task.completed).map((task) => task.id)); }, [dashboard]);
-
-  const loadDashboard = () => {
-    setLoading(true);
-    const minimumAnimation = new Promise<void>((resolve) => window.setTimeout(resolve, 650));
-    Promise.all([
-      getDashboardData()
-        .then((data) => { setDashboard(data); })
-        .catch(() => { setDashboard(demoDashboard); }),
-      minimumAnimation,
-    ]).finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    getDashboardData().then((data) => { if (!cancelled) setDashboard(data); }).catch(() => { if (!cancelled) setDashboard(demoDashboard); });
-    const refreshTimer = window.setInterval(() => { if (!cancelled) loadDashboard(); }, 30_000);
-    return () => { cancelled = true; window.clearInterval(refreshTimer); };
-  }, []);
-
-  const openTasks = useMemo(() => dashboard?.tasks.filter((task) => !completedTasks.includes(task.id)) ?? [], [completedTasks, dashboard]);
   if (!dashboard) return <PageSkeleton variant="dashboard" />;
+  const toggleTask = (id: string, completed: boolean) => { setCompletedTasks((current) => completed ? [...new Set([...current, id])] : current.filter((item) => item !== id)); void updateDashboardTask(id, completed).catch(() => {}); };
 
-  const summary = dashboard.summary;
-  const selectedRange = dateRangeLabels[dateRange];
+  return <div className="mx-auto max-w-[1500px] space-y-6 pb-10">
+    <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><Badge>Job search dashboard</Badge><h1 className="page-title mt-3">Hi {user?.name ?? "Demo User"}</h1><p className="meta mt-2">Here is your application activity and resume health for this week.</p></div><div className="flex flex-wrap gap-2"><Link href="/resume/upload"><Button variant="secondary"><FileText className="size-4" />Upload new resume</Button></Link><Link href="/resume/match"><Button><Sparkles className="size-4" />Tailor for job description</Button></Link><Button variant="ghost" onClick={load} disabled={loading} aria-label="Refresh dashboard"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /></Button></div></section>
 
-  const toggleTask = (id: string, checked: boolean) => {
-    setCompletedTasks((current) => checked ? [...new Set([...current, id])] : current.filter((taskId) => taskId !== id));
-    void updateDashboardTask(id, checked).catch(() => { setCompletedTasks((current) => checked ? current.filter((taskId) => taskId !== id) : [...current, id]); });
-  };
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Active pipeline" value="12" detail="Applications · 3 interviewing · 1 offer stage" icon={<BriefcaseBusiness className="size-5" />} tone="bg-primary-soft text-primary" /><Metric label="ATS match index" value={`${resumeScore} / 100`} detail="+4 pts vs. last upload" icon={<FileText className="size-5" />} tone="bg-emerald-50 text-emerald-600" /><Metric label="Response rate" value="22%" detail="Above industry average (15%)" icon={<TrendingUp className="size-5" />} tone="bg-emerald-50 text-emerald-600" /><Metric label="Upcoming events" value="2" detail="Interviews this week" icon={<CalendarDays className="size-5" />} tone="bg-amber-50 text-amber-600" /></section>
 
-  return (
-    <div className="min-w-0 space-y-5 pb-8">
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Growth overview</div>
-          <h1 className="page-title mt-2">Hi {user?.name ?? "there"}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">A clear view of the accounts, signals, and follow-ups that need your attention today.</p>
-        </div>
-        <div className="flex flex-wrap gap-2 sm:justify-end">
-          <div className="relative"><Button variant="secondary" size="sm" onClick={() => setDateMenuOpen((open) => !open)} aria-expanded={dateMenuOpen} aria-haspopup="listbox"><CalendarDays className="size-4" />{selectedRange}<ChevronDown className={`size-3.5 transition-transform duration-200 ${dateMenuOpen ? "rotate-180" : ""}`} /></Button>{dateMenuOpen ? <div className="absolute right-0 top-11 z-20 w-40 rounded-xl border border-border bg-white p-1.5 shadow-[0_16px_40px_rgba(23,27,43,.14)]" role="listbox" aria-label="Date range"><div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle">Date range</div>{(Object.keys(dateRangeLabels) as DateRange[]).map((option) => <button type="button" key={option} role="option" aria-selected={dateRange === option} onClick={() => { setDateRange(option); setDateMenuOpen(false); }} className={`flex w-full items-center rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors ${dateRange === option ? "bg-primary-soft text-primary" : "text-muted hover:bg-elevated hover:text-ink"}`}>{dateRangeLabels[option]}</button>)}</div> : null}</div>
-          <Button variant="secondary" size="sm" onClick={loadDashboard} disabled={loading}><RefreshCw className={`size-4 transition-transform duration-200 ${loading ? "animate-spin" : ""}`} />Refresh</Button>
-        </div>
-      </section>
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,.95fr)]"><Card className="p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="section-title">Immediate action items</h2><p className="meta mt-1">Priorities to keep your search moving.</p></div><Badge>{dashboard.tasks.filter((task) => !completedTasks.includes(task.id)).length} open</Badge></div><div className="mt-4 space-y-2.5">{dashboard.tasks.slice(0, 4).map((task) => <label key={task.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${completedTasks.includes(task.id) ? "border-emerald-100 bg-emerald-50/50" : "border-border hover:border-primary/30"}`}><input type="checkbox" checked={completedTasks.includes(task.id)} onChange={(event) => toggleTask(task.id, event.target.checked)} className="mt-0.5 size-4 rounded border-border text-primary" /><span className="min-w-0 flex-1"><span className={`block text-sm font-medium ${completedTasks.includes(task.id) ? "text-muted line-through" : "text-ink"}`}>{task.label}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-muted"><Clock3 className="size-3" />{task.due} · {task.urgency} priority</span></span>{completedTasks.includes(task.id) ? <Check className="size-4 text-emerald-600" /> : null}</label>)}</div><Link href="/applications" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary">View application tasks <ArrowRight className="size-4" /></Link></Card><Card className="p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="section-title">Upcoming interviews</h2><p className="meta mt-1">Prepare for the conversations ahead.</p></div><CalendarDays className="size-5 text-primary" /></div><div className="mt-4 space-y-3">{interviews.map((interview) => <div key={interview.company} className="rounded-xl border border-border p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{interview.company}</p><p className="mt-1 text-xs text-muted">{interview.role}</p></div><span className="text-xs font-medium text-primary">{interview.time}</span></div><div className="mt-3 flex items-center justify-between text-xs text-muted"><span>{interview.type}</span><Link href="/interview-prep" className="font-semibold text-primary">Prep now</Link></div></div>)}</div></Card></section>
 
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,.9fr)]"><Card className="overflow-hidden p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="section-title">Application tracker</h2><p className="meta mt-1">Your current pipeline at a glance.</p></div><Link href="/applications"><Button variant="secondary" size="sm"><Plus className="size-4" />Add application</Button></Link></div><div className="mt-6 grid gap-3 sm:grid-cols-4">{applicationStages.map((stage) => <div key={stage.label} className="rounded-xl border border-border p-3"><div className="flex items-center justify-between gap-2"><span className="size-2.5 rounded-full" style={{ backgroundColor: stage.color }} /><span className="text-2xl font-semibold text-ink">{stage.count}</span></div><p className="mt-2 text-xs font-medium text-muted">{stage.label}</p></div>)}</div><div className="mt-5 h-3 overflow-hidden rounded-full bg-elevated"><div className="flex h-full"><div className="w-1/3 bg-slate-300" /><div className="w-[42%] bg-blue-500" /><div className="w-[17%] bg-amber-500" /><div className="w-[8%] bg-emerald-500" /></div></div><Link href="/applications" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary">Open Kanban tracker <ChevronRight className="size-4" /></Link></Card><Card className="p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="section-title">Resume & ATS quick-check</h2><p className="meta mt-1">Primary resume health at a glance.</p></div><Link href="/resume/analysis" className="text-sm font-medium text-primary">Details</Link></div><div className="mt-5 flex items-center gap-5"><div className="grid size-24 shrink-0 place-items-center rounded-full p-1" style={{ background: `conic-gradient(${resumeScore >= 80 ? "#5f6f52" : "#d09b3f"} ${resumeScore * 3.6}deg, #e8ebe5 0deg)` }}><div className="grid size-full place-items-center rounded-full bg-white"><span className="text-2xl font-semibold">{resumeScore}</span><span className="-mt-1 text-[10px] text-muted">/ 100</span></div></div><div className="min-w-0 flex-1 space-y-2 text-xs"><div className="flex justify-between"><span>Formatting</span><span className="font-semibold text-emerald-700">88</span></div><div className="flex justify-between"><span>Keyword coverage</span><span className="font-semibold text-amber-700">72</span></div><div className="flex justify-between"><span>Impact & metrics</span><span className="font-semibold text-amber-700">74</span></div></div></div><div className="mt-5 rounded-xl bg-primary-soft p-3"><p className="text-xs font-medium text-primary">Quick job matcher</p><textarea value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} rows={3} placeholder="Paste a job description…" className="mt-2 w-full resize-none rounded-lg border border-primary/10 bg-white px-3 py-2 text-xs outline-none placeholder:text-subtle focus:border-primary/40" /><Link href="/resume/match" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary">Generate match score <ArrowRight className="size-3.5" /></Link></div></Card></section>
 
-      <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Kpi label="New opportunities" value={summary.newOpportunities} delta="Accounts in your pipeline" icon={<Target className="size-4" />} />
-        <Kpi label="Companies surging" value={summary.companiesSurging} delta="Companies in your workspace" icon={<TrendingUp className="size-4" />} tone="green" />
-        <Kpi label="New signals" value={summary.newSignals} delta={`${dashboard.signals.filter((signal) => signal.impact === "High").length} high priority`} icon={<Zap className="size-4" />} tone="amber" />
-        <Kpi label="People discovered" value={summary.peopleDiscovered} delta="Contacts in your workspace" icon={<Users className="size-4" />} tone="blue" />
-        <Kpi label="Pipeline value" value={summary.pipelineValue} delta="Total expected opportunity value" icon={<CircleDollarSign className="size-4" />} tone="green" />
-      </section>
-
-      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,.85fr)]">
-        <Card className="glass-card min-w-0 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_42px_rgba(91,53,230,.08)]">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div><h2 className="section-title">Growth score trend</h2><p className="mt-1 text-sm text-muted">Average score across tracked companies · {selectedRange.toLowerCase()}</p></div>
-            <div className="text-right"><div className="text-2xl font-semibold text-ink">{summary.averageGrowthScore}</div><div className="text-xs font-medium text-success">Current portfolio average</div></div>
-          </div>
-          <GrowthChart key={dateRange} days={Number(dateRange)} endScore={Number(summary.averageGrowthScore)} />
-          <div className="mt-4 grid grid-cols-3 gap-2"><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Top signal</div><div className="mt-1 truncate text-sm font-semibold text-ink">{dashboard.signals[0]?.type ?? "—"}</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Confidence</div><div className="mt-1 text-sm font-semibold text-ink">{dashboard.signals[0]?.confidence ?? 0}%</div></div><div className="rounded-xl bg-elevated p-3"><div className="text-[11px] text-muted">Active accounts</div><div className="mt-1 text-sm font-semibold text-ink">{summary.companiesSurging}</div></div></div>
-        </Card>
-
-        <Card className="glass-card min-w-0 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_18px_42px_rgba(91,53,230,.08)]">
-          <div className="flex items-start justify-between gap-3"><div><h2 className="section-title">My priorities</h2><p className="mt-1 text-sm text-muted">Follow-ups for today</p></div><Badge className="bg-primary-soft text-primary">{openTasks.length} open</Badge></div>
-          <div className="mt-4 space-y-2.5">
-            {dashboard.tasks.map((task) => <label key={task.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${completedTasks.includes(task.id) ? "border-emerald-100 bg-emerald-50/50" : "border-border bg-white hover:border-primary/30"}`}><input type="checkbox" checked={completedTasks.includes(task.id)} onChange={(event) => toggleTask(task.id, event.target.checked)} className="mt-0.5 size-4 rounded border-border text-primary" /><span className="min-w-0 flex-1"><span className={`block text-sm font-medium ${completedTasks.includes(task.id) ? "text-muted line-through" : "text-ink"}`}>{task.label}</span><span className="mt-1 flex items-center gap-1.5 text-xs text-muted"><Clock3 className="size-3" />{task.due}<span>·</span>{task.urgency} priority</span></span>{completedTasks.includes(task.id) ? <Check className="size-4 shrink-0 text-success" /> : null}</label>)}
-          </div>
-          <Link href="/lists" className="mt-4 flex items-center justify-between text-sm font-medium text-primary">View task list<ChevronRight className="size-4" /></Link>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,.75fr)]">
-        <Card className="glass-card min-w-0 overflow-hidden p-5">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="section-title">Top opportunities</h2><p className="mt-1 text-sm text-muted">Accounts with the strongest combination of fit and intent</p></div><Link href="/opportunities" className="text-sm font-medium text-primary">View pipeline</Link></div>
-          <div className="overflow-x-auto rounded-xl border border-border"><table className="w-full min-w-[620px] border-collapse"><thead className="bg-elevated text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-subtle"><tr><th className="px-3 py-3">Company</th><th className="px-3 py-3">Score</th><th className="px-3 py-3">Stage</th><th className="px-3 py-3">Signal</th><th className="px-3 py-3" /></tr></thead><tbody>{dashboard.opportunities.slice(0, 5).map((opportunity) => <tr key={opportunity.id} className="border-t border-border hover:bg-elevated/50"><td className="px-3 py-3"><div className="flex items-center gap-2.5"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary-soft text-[11px] font-semibold text-primary">{opportunity.company.slice(0, 2).toUpperCase()}</div><div className="min-w-0"><div className="truncate text-sm font-medium text-ink">{opportunity.company}</div><div className="truncate text-xs text-muted">{opportunity.industry} · {opportunity.employees}</div></div></div></td><td className="px-3 py-3"><Score value={opportunity.score} compact /></td><td className="px-3 py-3"><Badge className="bg-primary-soft text-primary">Active</Badge></td><td className="max-w-[180px] truncate px-3 py-3 text-xs text-muted">{opportunity.signal}</td><td className="px-3 py-3"><Link href={`/opportunities/${opportunity.id}`} aria-label={`Open ${opportunity.company}`}><ArrowUpRight className="size-4 text-primary" /></Link></td></tr>)}</tbody></table></div>
-        </Card>
-
-        <Card className="glass-card min-w-0 p-5">
-          <div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Latest signals</h2><p className="mt-1 text-sm text-muted">What changed recently</p></div><Link href="/signals" className="text-sm font-medium text-primary">View all</Link></div>
-          <div className="space-y-2.5">{dashboard.signals.slice(0, 4).map((signal) => <Link href="/signals" key={signal.id} className="flex items-center gap-3 rounded-xl border border-border bg-white p-3 transition hover:border-primary/30"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary"><Zap className="size-4" /></div><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink">{signal.type}</div><div className="mt-1 truncate text-xs text-muted">{signal.company}</div></div><div className="shrink-0 text-right"><div className="text-sm font-semibold text-ink">{signal.confidence}%</div><div className="text-[10px] text-success">{signal.impact}</div></div></Link>)}</div>
-        </Card>
-      </section>
-
-      <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
-        <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Pipeline health</h2><p className="mt-1 text-sm text-muted">Current opportunities by stage</p></div><Link href="/opportunities" aria-label="Open pipeline"><ChevronRight className="size-5 text-primary" /></Link></div><div className="space-y-4">{dashboard.pipeline.map((stage, index) => { const count = Number.parseInt(stage.count, 10) || 0; const max = Math.max(...dashboard.pipeline.map((item) => Number.parseInt(item.count, 10) || 0), 1); return <div key={stage.title}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="font-medium text-ink">{stage.title}</span><span className="text-muted">{stage.count} · {stage.value}</span></div><div className="h-2 overflow-hidden rounded-full bg-elevated"><div className={`h-full rounded-full ${["bg-primary", "bg-info", "bg-success", "bg-warning"][index % 4]}`} style={{ width: `${(count / max) * 100}%` }} /></div></div>; })}</div></Card>
-        <Card className="glass-card min-w-0 p-5"><div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="section-title">Recent activity</h2><p className="mt-1 text-sm text-muted">Latest updates from your workspace</p></div><Bell className="size-5 text-subtle" /></div><div className="grid gap-2.5 sm:grid-cols-2">{dashboard.activity.slice(0, 4).map((item, index) => <div key={item.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-border bg-white p-3"><div className="grid size-8 shrink-0 place-items-center rounded-lg bg-elevated text-muted">{index === 0 ? <Zap className="size-4" /> : index === 1 ? <CheckCircle2 className="size-4" /> : <Users className="size-4" />}</div><div className="min-w-0"><div className="text-sm leading-5 text-ink">{item.text}</div><div className="mt-1 text-xs text-muted">{item.age}</div></div></div>)}</div></Card>
-      </section>
-    </div>
-  );
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]"><Card className="p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="section-title">Recommended jobs</h2><p className="meta mt-1">Roles matched to your profile and preferences.</p></div><Link href="/jobs" className="text-sm font-medium text-primary">View all</Link></div><div className="mt-4 divide-y divide-border">{matchedJobs.map((job) => <div key={job.company} className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"><div className="flex min-w-0 items-center gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-sm font-semibold text-primary">{job.company.slice(0, 2)}</div><div className="min-w-0"><p className="truncate text-sm font-semibold">{job.role}</p><p className="mt-1 text-xs text-muted">{job.company} · {job.location}</p><div className="mt-2 flex flex-wrap gap-1.5">{job.tags.map((tag) => <span key={tag} className="rounded-full bg-elevated px-2 py-1 text-[10px] text-muted">{tag}</span>)}</div></div></div><div className="flex items-center gap-3"><span className="text-sm font-semibold text-emerald-700">{job.match}% match</span><Link href="/resume/match"><Button size="sm">Tailor & apply</Button></Link></div></div>)}</div></Card><Card className="p-5"><div className="flex items-start gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary-soft text-primary"><Users className="size-5" /></span><div><h2 className="section-title">Career momentum</h2><p className="meta mt-1">Small actions compound into better outcomes.</p></div></div><div className="mt-5 space-y-3"><Link href="/networking" className="flex items-center justify-between rounded-xl border border-border p-3 text-sm hover:border-primary/30"><span>Follow up with your network</span><ArrowRight className="size-4 text-primary" /></Link><Link href="/interview-prep" className="flex items-center justify-between rounded-xl border border-border p-3 text-sm hover:border-primary/30"><span>Practice one interview answer</span><ArrowRight className="size-4 text-primary" /></Link><Link href="/resume/create" className="flex items-center justify-between rounded-xl border border-border p-3 text-sm hover:border-primary/30"><span>Add one quantified achievement</span><ArrowRight className="size-4 text-primary" /></Link></div></Card></section>
+  </div>;
 }

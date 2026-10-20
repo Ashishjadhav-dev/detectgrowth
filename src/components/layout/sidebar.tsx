@@ -6,13 +6,18 @@ import { useEffect, useRef, useState } from "react";
 import {
   Bell,
   BriefcaseBusiness,
+  CheckCircle2,
   CircleUserRound,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
+  ClipboardList,
   FileText,
+  Globe2,
   Gauge,
+  MessageCircle,
   Radar,
+  Target,
   UploadCloud,
   X,
 } from "lucide-react";
@@ -21,41 +26,34 @@ import { clearDemoSession } from "@/lib/auth";
 
 const navGroups = [
   {
-    label: "WORKSPACE",
+    label: "MAIN",
     items: [
-      // ["Home", "/dashboard", Gauge],
-      // ["Discover", "/discover", Compass],
-      // ["Signals", "/signals", Zap],
+      ["Dashboard", "/dashboard", Gauge],
+    ],
+  },
+  {
+    label: "JOB HUNT",
+    items: [
+      ["Application Tracker", "/applications", ClipboardList],
       ["Jobs", "/jobs", BriefcaseBusiness],
       ["Opportunities", "/opportunities", Radar],
     ],
   },
-  // {
-  //   label: "ORGANIZE",
-  //   items: [
-  //     ["Lists", "/lists", List],
-  //     ["People", "/people", Users],
-  //     ["Research", "/research", FileSearch],
-  //   ],
-  // },
   {
-    label: "RESUME",
+    label: "RESUME & OPTIMIZATION",
     items: [
-      ["Upload Resume", "/resume/upload", UploadCloud],
-      ["ATS Analysis", "/resume/analysis", CheckCircle2],
-      ["Create Resume", "/resume/create", FileText],
-      ["Resume App", "/resume", Gauge],
-      ["My Portal", "/portal", CircleUserRound],
+      ["Resume Builder", "/resume/create", FileText],
+      ["ATS Scanner & Analysis", "/resume/analysis", CheckCircle2],
+      ["Targeted Matching", "/resume/match", Target],
     ],
   },
-  // {
-  //   label: "PLATFORM",
-  //   items: [
-  //     ["ICP Builder", "/icp", Database],
-  //     ["Integrations", "/integrations", Building2],
-  //     ["Settings", "/settings", Settings],
-  //   ],
-  // },
+  {
+    label: "PREP & NETWORK",
+    items: [
+      ["Interview Prep", "/interview-prep", MessageCircle],
+      ["Networking & Portals", "/networking", Globe2],
+    ],
+  },
 ] as const;
 
 export function Sidebar({
@@ -87,6 +85,7 @@ export function Sidebar({
     return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", key); previous?.focus(); };
   }, [mobileOpen]);
   const [collapsed, setCollapsed] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const signOut = async () => { try { await clearDemoSession(); window.location.assign("/auth"); } catch { setSignOutError("Unable to sign out. Please try again."); } };
 
@@ -114,6 +113,9 @@ export function Sidebar({
             <span className="mt-1 block text-[11px] text-muted">B2B growth intelligence</span>
           </span>
         </Link>
+        <div className="relative"><button type="button" onClick={() => setWorkspaceOpen((open) => !open)} className={cn("mt-3 flex w-full items-center gap-2 rounded-xl border border-border bg-elevated px-3 py-2 text-left text-xs font-medium text-ink", collapsed && "justify-center px-2")} aria-label="Select workspace" aria-expanded={workspaceOpen}>
+          <span className={collapsed ? "hidden" : "min-w-0 flex-1 truncate"}>Demo Workspace</span><ChevronDown className="size-3.5 shrink-0 text-muted" />
+        </button>{workspaceOpen ? <div className={cn("absolute left-0 right-0 top-12 z-20 rounded-xl border border-border bg-white p-1.5 shadow-lg", collapsed && "left-10 w-44")}><button type="button" onClick={() => setWorkspaceOpen(false)} className="flex w-full items-center rounded-lg bg-primary-soft px-2.5 py-2 text-left text-xs font-medium text-primary">Demo Workspace<span className="ml-auto">✓</span></button><button type="button" onClick={() => setWorkspaceOpen(false)} className="mt-1 flex w-full items-center rounded-lg px-2.5 py-2 text-left text-xs text-muted hover:bg-elevated">Job Search Mode</button></div> : null}</div>
         <button type="button" onClick={toggleCollapsed} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} className="absolute -right-1 top-1/2 grid size-7 -translate-y-1/2 translate-x-1/2 place-items-center rounded-full border border-border bg-white text-muted shadow-sm transition hover:border-primary/30 hover:text-primary">{collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}</button>
         </div>
 
@@ -133,7 +135,7 @@ export function Sidebar({
                       className={cn(
                         "group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-muted transition-[background-color,color,padding] duration-200 hover:bg-elevated hover:text-ink",
                         collapsed && "justify-center px-2",
-                        active && "bg-primary-soft text-primary shadow-none"
+                        active && "border-l-2 border-primary bg-primary-soft text-primary shadow-none"
                       )}
                     >
                       <Icon className="size-4 shrink-0" />
@@ -147,6 +149,7 @@ export function Sidebar({
         </nav>
 
         <div className="mt-auto shrink-0 space-y-3 pt-4">
+          <Link href="/resume/upload" className={cn("flex items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(95,111,82,.16)] transition hover:bg-primary-hover", collapsed && "justify-center px-2")}><UploadCloud className="size-4 shrink-0" /><span className={collapsed ? "hidden" : "block"}>Upload resume</span></Link>
           <div className={cn("rounded-2xl border border-border bg-elevated p-3 transition-[padding] duration-300", collapsed && "p-2")}>
             <div className="flex items-center justify-between gap-2">
               <div className={collapsed ? "hidden" : "block"}>
@@ -204,7 +207,7 @@ export function Sidebar({
                           onClick={onClose}
                           className={cn(
                             "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm text-muted transition duration-180 hover:bg-elevated hover:text-ink",
-                            active && "bg-primary-soft text-primary shadow-none"
+                            active && "border-l-2 border-primary bg-primary-soft text-primary shadow-none"
                           )}
                         >
                           <Icon className="size-4 shrink-0" />
@@ -218,6 +221,7 @@ export function Sidebar({
             </nav>
 
             <div className="mt-auto shrink-0 space-y-3 pt-4">
+              <Link href="/resume/upload" onClick={onClose} className="flex items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white"><UploadCloud className="size-4" />Upload resume</Link>
           <div className="rounded-2xl border border-border bg-elevated p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>

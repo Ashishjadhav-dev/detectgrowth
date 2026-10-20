@@ -4,15 +4,17 @@ import { demoCompanies, demoDashboard, demoIntegrations, demoLists, demoOpportun
 
 export const runtime = "nodejs";
 type Row = Record<string, unknown>;
+const guestUser = { id: "guest-demo", name: "Demo User", email: "demo@detectgrowth.com", workspace: "Demo Workspace", isDemo: true };
 async function handle(request: NextRequest, context: { params: Promise<{ segments: string[] }> }) {
   const token = request.cookies.get("detectgrowth_session")?.value;
-  if (!token) return NextResponse.json({ error: { message: "Please sign in." } }, { status: 401 });
+  const isGuest = request.cookies.get("detectgrowth_guest")?.value === "1";
+  if (!token && !isGuest) return NextResponse.json({ error: { message: "Please sign in." } }, { status: 401 });
   if (request.method !== "GET" && request.headers.get("origin") !== request.nextUrl.origin) return NextResponse.json({ error: { message: "Invalid origin." } }, { status: 403 });
   const { segments } = await context.params;
   const method = request.method;
   const input = method === "POST" || method === "PATCH" ? await request.json() : {};
   return transact((db) => {
-    const user = db.sessions[tokenHash(token)]?.user;
+    const user = isGuest ? guestUser : db.sessions[tokenHash(token!)]?.user;
     if (!user) return NextResponse.json({ error: { message: "Your session has expired." } }, { status: 401 });
     db.workspaces ??= {};
     const workspace = db.workspaces[user.id] ??= structuredClone({ companies: demoCompanies, people: demoPeople, signals: demoSignals, opportunities: demoOpportunities, lists: demoLists, integrations: demoIntegrations, dashboard: demoDashboard, icp: { industries: "SaaS, E-commerce", locations: "India", employeeSize: "51-200", revenue: "", signals: {} } });
