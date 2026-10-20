@@ -6,19 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import {
   Bell,
   BriefcaseBusiness,
-  Building2,
   CircleUserRound,
   ChevronLeft,
   ChevronRight,
-  Compass,
-  Database,
-  FileSearch,
+  CheckCircle2,
+  FileText,
   Gauge,
-  List,
   Radar,
-  Settings,
-  Users,
-  Zap,
+  UploadCloud,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -28,29 +23,39 @@ const navGroups = [
   {
     label: "WORKSPACE",
     items: [
-      ["Home", "/dashboard", Gauge],
-      ["Discover", "/discover", Compass],
-      ["Signals", "/signals", Zap],
+      // ["Home", "/dashboard", Gauge],
+      // ["Discover", "/discover", Compass],
+      // ["Signals", "/signals", Zap],
       ["Jobs", "/jobs", BriefcaseBusiness],
       ["Opportunities", "/opportunities", Radar],
     ],
   },
+  // {
+  //   label: "ORGANIZE",
+  //   items: [
+  //     ["Lists", "/lists", List],
+  //     ["People", "/people", Users],
+  //     ["Research", "/research", FileSearch],
+  //   ],
+  // },
   {
-    label: "ORGANIZE",
+    label: "RESUME",
     items: [
-      ["Lists", "/lists", List],
-      ["People", "/people", Users],
-      ["Research", "/research", FileSearch],
+      ["Upload Resume", "/resume/upload", UploadCloud],
+      ["ATS Analysis", "/resume/analysis", CheckCircle2],
+      ["Create Resume", "/resume/create", FileText],
+      ["Resume App", "/resume", Gauge],
+      ["My Portal", "/portal", CircleUserRound],
     ],
   },
-  {
-    label: "PLATFORM",
-    items: [
-      ["ICP Builder", "/icp", Database],
-      ["Integrations", "/integrations", Building2],
-      ["Settings", "/settings", Settings],
-    ],
-  },
+  // {
+  //   label: "PLATFORM",
+  //   items: [
+  //     ["ICP Builder", "/icp", Database],
+  //     ["Integrations", "/integrations", Building2],
+  //     ["Settings", "/settings", Settings],
+  //   ],
+  // },
 ] as const;
 
 export function Sidebar({
@@ -133,11 +138,6 @@ export function Sidebar({
                     >
                       <Icon className="size-4 shrink-0" />
                       <span className={cn("min-w-0 truncate", collapsed && "hidden")}>{name}</span>
-                      {name === "Signals" ? (
-                        <span className={cn("ml-auto rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted", collapsed && "hidden")}>
-                          24
-                        </span>
-                      ) : null}
                     </Link>
                   );
                 })}
@@ -209,11 +209,6 @@ export function Sidebar({
                         >
                           <Icon className="size-4 shrink-0" />
                           <span className="min-w-0 truncate">{name}</span>
-                          {name === "Signals" ? (
-                            <span className="ml-auto rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                              24
-                            </span>
-                          ) : null}
                         </Link>
                       );
                     })}

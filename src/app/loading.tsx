@@ -1,2 +1,5 @@
-import { PageSkeleton } from "@/components/ui/page-skeleton";
-export default function Loading(){return <PageSkeleton variant="workspace" />;}
+import { BrandLoader } from "@/components/ui/brand-loader";
+
+export default function Loading() {
+  return <BrandLoader />;
+}
