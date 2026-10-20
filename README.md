@@ -1,11 +1,61 @@
 # DetectGrowth
 
-A clean Next.js + TypeScript + Tailwind starter implementing the DetectGrowth product direction from the supplied reference.
+DetectGrowth is a full-stack B2B growth intelligence SaaS built to help teams discover companies, monitor business signals, manage opportunities, and organize research workflows.
 
-## Stack
-- Next.js 15 (App Router)
+The project demonstrates production-style frontend architecture, REST API design, authentication, multi-tenant workspace isolation, persistent data flows, background processing, and responsive SaaS UX.
+
+---
+
+## Core Features
+
+### Authentication & Account Security
+- Sign up and sign in
+- Server-managed sessions
+- Protected application routes
+- Account recovery
+- Recovery codes
+- Session revocation after password/reset flows
+
+### Workspace Management
+- Workspace-scoped application data
+- Persistent company and opportunity records
+- Workspace-aware backend queries
+- Multi-tenant architecture foundation
+
+### Company Intelligence
+- Company discovery and management
+- Growth signal tracking
+- Company-level research workflows
+- Search and filtering
+
+### Signals
+- Business signal ingestion
+- External source processing
+- Background worker architecture
+- Duplicate prevention using database constraints
+
+### Opportunities
+- Create and manage opportunities
+- Associate opportunities with workspace data
+- Persistent CRUD workflows
+
+### Dashboard
+- Growth metrics
+- Interactive trend visualization
+- 7 / 30 / 90 day ranges
+- Refresh states
+- API-backed data with resilient fallback states
+- Responsive desktop and mobile UX
+
+---
+
+## Tech Stack
+
+### Frontend
+
+- Next.js 15
 - React 19
-- TypeScript (strict)
+- TypeScript
 - Tailwind CSS
 - Lucide icons
 - Reusable feature + UI component architecture
@@ -46,19 +96,6 @@ cd backend && go run ./cmd/worker
 For a Vercel deployment, set `NEXT_PUBLIC_API_URL` to the publicly reachable
 backend URL. Vercel deploys the Next.js frontend; PostgreSQL, Redis, and the Go
 API/worker need to run on a separate host or managed service.
-
-The frontend and backend already live in this same repository. Deploy the
-repository root to Vercel, and deploy the `backend/` directory as a separate Go
-service using `backend/Dockerfile`. See `backend/README.md` for the production
-environment variables and migration command.
-
-### Vercel-only mode
-
-The Next.js API routes can run on Vercel without the Go service. Connect Neon
-Postgres through the Vercel Marketplace so `DATABASE_URL` is injected, then run
-`backend/migrations/010_next_app_state.sql` once against that database. Remove
-`NEXT_PUBLIC_API_URL` from Vercel so the browser uses same-origin `/api/auth`
-and `/api/v1` routes; do not leave it set to a local URL or `/a`.
 
 ## Quality checks
 ```bash
