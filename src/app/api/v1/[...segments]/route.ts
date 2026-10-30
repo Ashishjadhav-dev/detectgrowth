@@ -17,7 +17,9 @@ async function handle(request: NextRequest, context: { params: Promise<{ segment
     const user = isGuest ? guestUser : db.sessions[tokenHash(token!)]?.user;
     if (!user) return NextResponse.json({ error: { message: "Your session has expired." } }, { status: 401 });
     db.workspaces ??= {};
-    const workspace = db.workspaces[user.id] ??= structuredClone({ companies: demoCompanies, people: demoPeople, signals: demoSignals, opportunities: demoOpportunities, lists: demoLists, integrations: demoIntegrations, dashboard: demoDashboard, icp: { industries: "SaaS, E-commerce", locations: "India", employeeSize: "51-200", revenue: "", signals: {} } });
+    const workspace = db.workspaces[user.id] ??= structuredClone({ companies: demoCompanies, people: demoPeople, signals: demoSignals, opportunities: demoOpportunities, lists: demoLists, integrations: demoIntegrations, applications: [], jobAlerts: [], dashboard: demoDashboard, icp: { industries: "SaaS, E-commerce", locations: "India", employeeSize: "51-200", revenue: "", signals: {} } });
+    workspace.applications ??= [];
+    workspace.jobAlerts ??= [];
     const ok = (data: unknown) => NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } });
     workspace.bookmarks ??= [];
     const fail = (message: string, status = 400) => NextResponse.json({ error: { message } }, { status });

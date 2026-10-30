@@ -73,6 +73,15 @@ The frontend uses `NEXT_PUBLIC_API_URL` for API requests and defaults to
 `http://localhost:8080`. Copy `.env.example` to `.env.local` when connecting
 to a different backend.
 
+### AI personalization
+
+Resume rewriting, cover letters, interview feedback, and LinkedIn optimization
+use the server-side OpenAI Responses API route. Add `OPENAI_API_KEY` and
+optionally `OPENAI_MODEL` to the Next.js server environment. The key must not
+use a `NEXT_PUBLIC_` prefix. Requests are sent with provider storage disabled;
+production deployments should add consent, retention, redaction, rate limits,
+and usage monitoring.
+
 ## Run the backend locally
 
 The backend requires Go 1.22+, PostgreSQL, and Redis. Copy

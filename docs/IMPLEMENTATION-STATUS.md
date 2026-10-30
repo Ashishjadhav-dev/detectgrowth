@@ -17,6 +17,13 @@ registered accounts also start with sample records that can be edited and delete
 - Responsive card layouts, mobile navigation and job dialogs, focus trapping,
   keyboard chart exploration, and full-surface chart hover.
 - Deterministic sample jobs by default. `JOBS_DATA_MODE=live` enables public feeds.
+- Resume workflow now supports PDF/DOCX extraction, content-based ATS scoring,
+  role comparison, tailored resume content, cover-letter drafts, career-gap
+  guidance, interview practice, profile optimization, recruiter outreach
+  templates, application tracking, and saved browser job alerts.
+- Optional server-side OpenAI personalization is wired for resume rewrites,
+  cover letters, interview feedback, and LinkedIn profile improvements through
+  `/api/ai/personalize`; configure `OPENAI_API_KEY` and `OPENAI_MODEL` to enable it.
 - `npm run build` checks compilation, lint, and types.
 - `TEST_BASE_URL=http://localhost:3002 npm run test:api` tests the running server.
 - `npm run test:e2e` tests desktop and mobile against port 3002 by default.
@@ -43,6 +50,16 @@ server adapter does not require rewriting page components.
   third-party OAuth accounts or run ingestion workers.
 - Notification preferences persist; email digests require an email provider and
   scheduler. Research summarizes stored evidence, not a connected AI service.
+- Applications and job-alert preferences persist through the workspace API with
+  local fallback for offline/demo use. Browser alerts can request notification
+  permission; production email alerts still require a server-side scheduler,
+  delivery provider, unsubscribe handling, and a notification history model.
+- Resume tailoring currently uses a local scoring rubric plus public
+  LanguageTool/Datamuse enrichment. Production use should proxy or self-host
+  these services and add consent, retention, and redaction controls.
+- AI personalization requires an OpenAI API key, provider billing/limits,
+  server-side rate limiting, usage metering, prompt/version monitoring, and
+  privacy/retention controls before a public launch.
 - Growth chart history is sample data; dashboard summary counts reflect the
   workspace records. Historical comparisons require a real history dataset.
 - Workspace roles, team invitations, billing, and multi-user authorization are not

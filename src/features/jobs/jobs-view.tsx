@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Bookmark, BriefcaseBusiness, CalendarDays, ChevronDown, MapPin, RefreshCw, Search, Settings2, SlidersHorizontal, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SaveJob } from "@/components/jobs/save-job";
 import { Dialog } from "@/components/ui/dialog";
 import { JobsToolbar, type Workplace } from "@/components/jobs/jobs-toolbar";
+import { JobAlert } from "@/components/jobs/job-alert";
 import type { JobListing, JobSource, JobsResponse } from "@/types/jobs";
 
 const workplaceOptions = ["Any workplace", "Remote", "Hybrid", "On-site"] as const;
@@ -105,30 +107,30 @@ function JobsLoadingSkeleton() {
 }
 
 export function JobsView() {
-  const [data, setData] = useState<JobsResponse | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => { const media = window.matchMedia("(max-width: 1023px)"); const update = () => setIsMobile(media.matches); update(); media.addEventListener("change", update); return () => media.removeEventListener("change", update); }, []);
   const [query, setQuery] = useState("accenture");
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  const [source, setSource] = useState("All sources");
-  const [sourceMenuOpen, setSourceMenuOpen] = useState(false);
   const [workplaceFilter, setWorkplaceFilter] = useState<Workplace>("Any workplace");
   const [sort, setSort] = useState("Newest");
   const [greenhouseBoards, setGreenhouseBoards] = useState("airbnb");
   const [leverBoards, setLeverBoards] = useState("netflix");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-
-  const loadJobs = useCallback(() => {
-    setLoading(true);
+  const jobsQuery = useQuery<JobsResponse, Error>({
+    queryKey: ["jobs", { query, greenhouseBoards, leverBoards }],
+    queryFn: async () => {
     const params = new URLSearchParams({ greenhouse: greenhouseBoards, lever: leverBoards, search: query.trim() });
-    fetch(`/api/jobs?${params}`).then(async (response) => { if (!response.ok) throw new Error("Unable to load job feeds"); return response.json() as Promise<JobsResponse>; }).then((payload) => { setData(payload); setSelectedSources([]); setError(null); }).catch((requestError: Error) => setError(requestError.message)).finally(() => setLoading(false));
-  }, [greenhouseBoards, leverBoards, query]);
-
-  useEffect(() => { const timer = window.setTimeout(loadJobs, 350); return () => window.clearTimeout(timer); }, [loadJobs]);
+      const response = await fetch(`/api/jobs?${params}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Unable to load job feeds");
+      return response.json() as Promise<JobsResponse>;
+    },
+    placeholderData: (previous) => previous,
+  });
+  const data = jobsQuery.data ?? null;
+  const loading = jobsQuery.isLoading;
+  const error = jobsQuery.error?.message ?? null;
+  const loadJobs = () => { void jobsQuery.refetch(); };
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -152,7 +154,8 @@ export function JobsView() {
   const sourceOptions = ["All sources", ...Object.keys(data?.sources ?? {})];
   const selectedJob = filteredJobs.find((job) => job.id === selectedJobId) ?? filteredJobs[0];
   return <div className="-mx-4 -my-4 flex min-h-[calc(100vh-4rem)] flex-col bg-white md:-mx-6 lg:-mx-7 lg:h-[calc(100vh-4.25rem)] lg:overflow-hidden">
-    <JobsToolbar query={query} setQuery={setQuery} searchRef={searchRef} sourceOptions={sourceOptions} selectedSources={selectedSources} setSelectedSources={setSelectedSources} workplaceFilter={workplaceFilter} setWorkplaceFilter={setWorkplaceFilter} sort={sort} setSort={setSort} greenhouseBoards={greenhouseBoards} setGreenhouseBoards={setGreenhouseBoards} leverBoards={leverBoards} setLeverBoards={setLeverBoards} loading={loading} loadJobs={loadJobs} resultCount={filteredJobs.length} totalCount={data?.jobs.length ?? 0} />
+    <JobsToolbar query={query} setQuery={setQuery} searchRef={searchRef} sourceOptions={sourceOptions} selectedSources={selectedSources} setSelectedSources={setSelectedSources} workplaceFilter={workplaceFilter} setWorkplaceFilter={setWorkplaceFilter} sort={sort} setSort={setSort} greenhouseBoards={greenhouseBoards} setGreenhouseBoards={setGreenhouseBoards} leverBoards={leverBoards} setLeverBoards={setLeverBoards} loading={jobsQuery.isFetching} loadJobs={loadJobs} resultCount={filteredJobs.length} totalCount={data?.jobs.length ?? 0} />
+    <JobAlert query={query} workplace={workplaceFilter} />
     {error ? <div className="mx-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 md:mx-6 lg:mx-7">{error}. Try refreshing the feed.</div> : null}
     <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 md:px-6 lg:overflow-hidden lg:px-7">
     {loading ? <JobsLoadingSkeleton /> : filteredJobs.length ? <>
