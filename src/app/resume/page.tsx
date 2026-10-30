@@ -1,12 +1,14 @@
 "use client";
 
 import { type ChangeEvent, type DragEvent, type ReactNode, useEffect, useId, useState } from "react";
-import { Check, CheckCircle2, FileText, Lightbulb, Palette, Sparkles, Trash2, UploadCloud } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, FileText, Lightbulb, LoaderCircle, Palette, Sparkles, Target, Trash2, UploadCloud } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ResumeJobMatches } from "@/components/resume/resume-job-matches";
+import { analyzeResume, extractResumeText, type ResumeAnalysis } from "@/lib/resume-analysis";
 
 type ResumeTheme = "classic" | "modern" | "minimal";
 
@@ -23,13 +25,6 @@ type ResumeDraft = {
   skills: string;
   projects: string;
   theme: ResumeTheme;
-};
-
-type AtsAnalysis = {
-  score: number;
-  categories: { label: string; score: number }[];
-  strengths: string[];
-  suggestions: string[];
 };
 
 function escapeHtml(value: string) {
@@ -92,28 +87,20 @@ export default function ResumeWorkspace() {
   const [generated, setGenerated] = useState(false);
   const [creating, setCreating] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
-  const [atsAnalysis, setAtsAnalysis] = useState<AtsAnalysis | null>(null);
-  const [activeResumeTab, setActiveResumeTab] = useState<"upload" | "analysis">(pathname.endsWith("/analysis") ? "analysis" : "upload");
+  const [atsAnalysis, setAtsAnalysis] = useState<ResumeAnalysis | null>(null);
+  const [analysisError, setAnalysisError] = useState("");
+  const [analysisStep, setAnalysisStep] = useState("Waiting for your resume");
 
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("detectgrowth-resume-draft");
       if (stored) setDraft({ ...emptyDraft, ...JSON.parse(stored) });
       const storedAnalysis = window.sessionStorage.getItem("detectgrowth-ats-analysis");
-      if (storedAnalysis) setAtsAnalysis(JSON.parse(storedAnalysis) as AtsAnalysis);
+      if (storedAnalysis) setAtsAnalysis(JSON.parse(storedAnalysis) as ResumeAnalysis);
     } catch {
       // The form remains usable if local storage is unavailable.
     }
   }, []);
-
-  useEffect(() => {
-    setActiveResumeTab(pathname.endsWith("/analysis") ? "analysis" : "upload");
-  }, [pathname]);
-
-  const selectResumeTab = (tab: "upload" | "analysis") => {
-    setActiveResumeTab(tab);
-    router.push(`/resume/${tab}`);
-  };
 
   const update = (field: keyof ResumeDraft, value: string) => {
     setSaved(false);
@@ -122,9 +109,9 @@ export default function ResumeWorkspace() {
 
   const chooseFile = (selected: File | undefined) => {
     if (!selected) return;
-    const allowed = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
-    if (!allowed.includes(selected.type) && !/\.(pdf|doc|docx)$/i.test(selected.name)) {
-      setUploadMessage("Please choose a PDF, DOC, or DOCX file.");
+    const allowed = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    if (!allowed.includes(selected.type) && !/\.(pdf|docx)$/i.test(selected.name)) {
+      setUploadMessage("Please choose a text-based PDF or DOCX file.");
       return;
     }
     if (selected.size > 10 * 1024 * 1024) {
@@ -134,6 +121,7 @@ export default function ResumeWorkspace() {
     setFile(selected);
     setUploadMessage("");
     setAtsAnalysis(null);
+    setAnalysisError("");
   };
 
   const onDrop = (event: DragEvent<HTMLLabelElement>) => {
@@ -194,30 +182,36 @@ export default function ResumeWorkspace() {
     printWindow.print();
   };
 
-  const runAtsAnalysis = () => {
+  const runAtsAnalysis = async () => {
     if (!file) return;
-    selectResumeTab("analysis");
     setAnalyzing(true);
     setAtsAnalysis(null);
+    setAnalysisError("");
+    setAnalysisStep("Reading your resume");
     setUploadMessage("Resume uploaded to this workspace.");
-    const uploadedResume = { ...draft, name: draft.name || file.name.replace(/\.(pdf|docx?)$/i, ""), headline: draft.headline || file.name.replace(/\.(pdf|docx?)$/i, "") };
-    window.localStorage.setItem("detectgrowth-resume-draft", JSON.stringify(uploadedResume));
-    window.setTimeout(() => {
-      const result = {
-        score: 78,
-        categories: [
-          { label: "ATS compatibility", score: 86 },
-          { label: "Keyword alignment", score: 72 },
-          { label: "Impact and clarity", score: 74 },
-          { label: "Formatting", score: 88 },
-        ],
-        strengths: ["Clear section structure", "Readable formatting", "Good contact visibility"],
-        suggestions: ["Add more role-specific keywords from the target job description", "Turn responsibilities into measurable achievements", "Use a standard job title where possible"],
-      };
+    try {
+      const text = await extractResumeText(file);
+      setAnalysisStep("Checking ATS structure and measurable impact");
+      const result = await analyzeResume(text);
+      setAnalysisStep("Preparing your recommendations");
+      const uploadedResume = { ...draft, ...result.draft, name: result.draft.name || draft.name || file.name.replace(/\.(pdf|docx?)$/i, ""), headline: result.draft.headline || draft.headline || file.name.replace(/\.(pdf|docx?)$/i, "") };
+      setDraft(uploadedResume);
+      window.localStorage.setItem("detectgrowth-resume-draft", JSON.stringify(uploadedResume));
       sessionStorage.setItem("detectgrowth-ats-analysis", JSON.stringify(result));
       setAtsAnalysis(result);
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "We could not analyze this file.");
+    } finally {
       setAnalyzing(false);
-    }, 1400);
+    }
+  };
+
+  const resetAnalysis = () => {
+    setFile(null);
+    setAtsAnalysis(null);
+    setAnalysisError("");
+    setUploadMessage("");
+    window.sessionStorage.removeItem("detectgrowth-ats-analysis");
   };
 
   const atsScoreColor = atsAnalysis ? (atsAnalysis.score >= 80 ? "#5f6f52" : atsAnalysis.score >= 60 ? "#d09b3f" : "#bf5a54") : "#5f6f52";
@@ -232,34 +226,32 @@ export default function ResumeWorkspace() {
 
       <div className="grid grid-cols-1 gap-5">
         <div className={createRoute ? "hidden" : "space-y-5"}>
-        <div className="flex rounded-2xl border border-border bg-white p-1.5" role="tablist" aria-label="Resume tools">
-          <button type="button" role="tab" aria-selected={activeResumeTab === "upload"} onClick={() => selectResumeTab("upload")} className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition ${activeResumeTab === "upload" ? "bg-primary text-white shadow-sm" : "text-muted hover:bg-elevated hover:text-ink"}`}><UploadCloud className="mr-2 inline-block size-4" />Upload resume</button>
-          <button type="button" role="tab" aria-selected={activeResumeTab === "analysis"} onClick={() => selectResumeTab("analysis")} className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition ${activeResumeTab === "analysis" ? "bg-primary text-white shadow-sm" : "text-muted hover:bg-elevated hover:text-ink"}`}><Check className="mr-2 inline-block size-4" />ATS analysis</button>
-        </div>
-
-        {activeResumeTab === "upload" ? <Card className="h-fit p-5 sm:p-6">
+        {!analyzing && !atsAnalysis && !analysisError ? <Card className="h-fit p-5 sm:p-6">
           <div className="flex items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><UploadCloud className="size-5" /></span>
-            <div><h2 className="section-title">Upload a resume</h2><p className="meta mt-1">Bring an existing PDF or Word document.</p></div>
+            <div><h2 className="section-title">Upload a resume</h2><p className="meta mt-1">Bring an existing text-based PDF or DOCX.</p></div>
           </div>
 
           <label htmlFor={fileInputId} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop} className={`mt-6 flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed p-5 text-center transition ${dragging ? "border-primary bg-primary-soft" : "border-border bg-elevated hover:border-primary/50 hover:bg-primary-soft/40"}`}>
             <span className="grid size-12 place-items-center rounded-full bg-white text-primary shadow-sm"><FileText className="size-5" /></span>
             <span className="mt-4 text-sm font-semibold text-ink">Drop your resume here</span>
-            <span className="mt-1 text-xs text-muted">or click to browse · PDF, DOC, DOCX · max 10 MB</span>
-            <input id={fileInputId} type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" onChange={onFileChange} />
+            <span className="mt-1 text-xs text-muted">or click to browse · PDF, DOCX · max 10 MB</span>
+            <input id={fileInputId} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" onChange={onFileChange} />
           </label>
 
           {file ? <div className="mt-4 flex items-center gap-3 rounded-xl border border-border bg-white p-3"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary"><FileText className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{file.name}</p><p className="text-xs text-muted">{(file.size / 1024 / 1024).toFixed(2)} MB · Ready to use</p></div><button type="button" onClick={() => setFile(null)} aria-label="Remove uploaded resume" className="rounded-lg p-2 text-muted hover:bg-elevated hover:text-danger"><Trash2 className="size-4" /></button></div> : null}
           {uploadMessage && uploadMessage !== "Resume uploaded to this workspace." ? <p role="alert" className="mt-3 text-sm text-danger">{uploadMessage}</p> : null}
           <Button className="mt-5 w-full" disabled={!file || analyzing} onClick={runAtsAnalysis}><UploadCloud className="size-4" />{analyzing ? "Analyzing…" : uploadMessage === "Resume uploaded to this workspace." ? "Analyze again" : "Upload & analyze"}</Button>
           {uploadMessage === "Resume uploaded to this workspace." ? <p className="mt-3 text-center text-xs text-green-700">Resume uploaded to this workspace.</p> : null}
+          <p className="mt-3 text-center text-[11px] text-subtle">The extracted text is checked locally and sent to public LanguageTool and Datamuse endpoints for writing and keyword enrichment.</p>
         </Card> : null}
 
-        {activeResumeTab === "analysis" && analyzing ? <Card className="relative overflow-hidden border-primary/20 p-5 sm:p-6"><div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-primary" /><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary-soft text-primary"><FileText className="size-5 animate-pulse" /></span><div><h2 className="section-title">Scanning your resume</h2><p className="meta mt-1">Checking structure, keywords, and readability…</p></div></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-elevated"><div className="h-full w-2/3 animate-pulse rounded-full bg-primary" /></div><div className="mt-3 flex justify-between text-xs text-muted"><span>Parsing content</span><span className="animate-pulse">Almost there</span></div></Card> : null}
+        {analyzing ? <Card className="relative overflow-hidden border-primary/20 p-5 sm:p-6"><div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-primary" /><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-primary-soft text-primary"><LoaderCircle className="size-5 animate-spin" /></span><div><h2 className="section-title">Analyzing your resume</h2><p className="meta mt-1">{analysisStep}…</p></div></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-elevated"><div className="h-full w-2/3 animate-pulse rounded-full bg-primary" /></div><div className="mt-3 flex justify-between text-xs text-muted"><span>Local ATS + public language checks</span><span className="animate-pulse">Working…</span></div><div className="mt-5 grid gap-2 sm:grid-cols-3"><div className="rounded-xl bg-elevated/60 p-3 text-xs text-muted"><FileText className="mb-2 size-4 text-primary" />Extracting text</div><div className="rounded-xl bg-elevated/60 p-3 text-xs text-muted"><Target className="mb-2 size-4 text-primary" />Scoring impact</div><div className="rounded-xl bg-elevated/60 p-3 text-xs text-muted"><Sparkles className="mb-2 size-4 text-primary" />Finding improvements</div></div></Card> : null}
 
-        {activeResumeTab === "analysis" && atsAnalysis ? <Card className="overflow-hidden border-primary/20 p-5 sm:p-6"><div className="flex items-start justify-between gap-3"><div><Badge>ATS analysis</Badge><h2 className="section-title mt-3">Your resume score</h2><p className="meta mt-1">A quick scan of your uploaded resume.</p></div><div className="grid size-24 place-items-center rounded-full p-1" style={{ background: `conic-gradient(${atsScoreColor} ${atsAnalysis.score * 3.6}deg, #e8ebe5 0deg)` }}><div className="grid size-full place-items-center rounded-full bg-white"><span className="text-2xl font-semibold text-ink">{atsAnalysis.score}</span><span className="-mt-1 text-[10px] text-muted">/ 100</span></div></div></div><div className="mt-6 space-y-4">{atsAnalysis.categories.map((category) => { const categoryColor = category.score >= 80 ? "#5f6f52" : category.score >= 60 ? "#d09b3f" : "#bf5a54"; return <div key={category.label}><div className="mb-1.5 flex justify-between text-xs"><span className="font-medium text-ink">{category.label}</span><span style={{ color: categoryColor }}>{category.score}/100</span></div><div className="h-2 overflow-hidden rounded-full bg-elevated"><div className="h-full rounded-full transition-[width] duration-1000 ease-out" style={{ width: `${category.score}%`, backgroundColor: categoryColor }} /></div></div>; })}</div><div className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-2"><div><h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">What’s working</h3><ul className="mt-3 space-y-2 text-sm text-muted">{atsAnalysis.strengths.map((item) => <li key={item} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-green-600" />{item}</li>)}</ul></div><div><h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Improve next</h3><ul className="mt-3 space-y-2 text-sm text-muted">{atsAnalysis.suggestions.map((item) => <li key={item} className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900"><span className="size-1.5 shrink-0 rounded-full bg-amber-500" /><span className="min-w-0 flex-1">{item}</span><button type="button" onClick={() => router.push("/resume/create")} className="shrink-0 text-xs font-semibold text-amber-900 underline underline-offset-2">Fix now</button></li>)}</ul></div></div></Card> : null}
-        {activeResumeTab === "analysis" && !analyzing && !atsAnalysis ? <Card className="p-8 text-center"><span className="mx-auto grid size-12 place-items-center rounded-full bg-primary-soft text-primary"><Check className="size-5" /></span><h2 className="section-title mt-4">No analysis yet</h2><p className="meta mx-auto mt-2 max-w-xs">Upload a resume first, then return here to see its ATS score and recommendations.</p><Button className="mt-5" variant="secondary" onClick={() => selectResumeTab("upload")}>Go to upload</Button></Card> : null}
+        {!analyzing && analysisError ? <Card className="border-red-200 bg-red-50/70 p-5"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0 text-red-600" /><div><h2 className="section-title">We couldn’t read this resume</h2><p role="alert" className="meta mt-1 text-red-800">{analysisError}</p><Button className="mt-4" variant="secondary" onClick={resetAnalysis}>Choose another file</Button></div></div></Card> : null}
+
+        {atsAnalysis ? <Card className="overflow-hidden border-primary/20 p-5 sm:p-6"><div className="flex items-start justify-between gap-3"><div><Badge>ATS analysis</Badge><h2 className="section-title mt-3">Your resume score</h2><p className="meta mt-1">Calculated from {atsAnalysis.extractedTextLength.toLocaleString()} characters of extracted content.</p></div><div className="flex items-center gap-3"><div className="grid size-24 place-items-center rounded-full p-1" style={{ background: `conic-gradient(${atsScoreColor} ${atsAnalysis.score * 3.6}deg, #e8ebe5 0deg)` }}><div className="grid size-full place-items-center rounded-full bg-white"><span className="text-2xl font-semibold text-ink">{atsAnalysis.score}</span><span className="-mt-1 text-[10px] text-muted">/ 100</span></div></div><Button variant="secondary" onClick={resetAnalysis}>Upload another</Button></div></div><div className="mt-6 space-y-4">{atsAnalysis.categories.map((category) => { const categoryColor = category.score >= 80 ? "#5f6f52" : category.score >= 60 ? "#d09b3f" : "#bf5a54"; return <div key={category.label}><div className="mb-1.5 flex justify-between text-xs"><span className="font-medium text-ink">{category.label}</span><span style={{ color: categoryColor }}>{category.score}/100</span></div><div className="h-2 overflow-hidden rounded-full bg-elevated"><div className="h-full rounded-full transition-[width] duration-1000 ease-out" style={{ width: `${category.score}%`, backgroundColor: categoryColor }} /></div><p className="mt-1 text-[11px] text-muted">{category.detail}</p></div>; })}</div><div className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-2"><div><h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">What’s working</h3><ul className="mt-3 space-y-2 text-sm text-muted">{atsAnalysis.strengths.map((item) => <li key={item} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-green-600" />{item}</li>)}</ul></div><div><h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Improve next</h3><ul className="mt-3 space-y-2 text-sm text-muted">{atsAnalysis.suggestions.map((item) => <li key={item} className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900"><span className="size-1.5 shrink-0 rounded-full bg-amber-500" /><span className="min-w-0 flex-1">{item}</span><button type="button" onClick={() => router.push("/resume/create")} className="shrink-0 text-xs font-semibold text-amber-900 underline underline-offset-2">Fix now</button></li>)}</ul></div></div><div className="mt-6 border-t border-border pt-5"><h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Related keywords to consider</h3><p className="mt-1 text-xs text-muted">Suggested by Datamuse based on terms found in your resume. Keep only keywords that accurately describe your experience.</p><div className="mt-3 flex flex-wrap gap-2">{atsAnalysis.keywords.length ? atsAnalysis.keywords.map((keyword) => <span key={keyword} className="rounded-full border border-border bg-elevated px-3 py-1.5 text-xs text-ink">{keyword}</span>) : <span className="text-sm text-muted">No additional keyword suggestions returned.</span>}</div><p className="mt-3 text-[11px] text-subtle">Analysis sources: {atsAnalysis.analyzedWith.join(" · ")}</p></div></Card> : null}
+        {atsAnalysis ? <ResumeJobMatches resumeText={atsAnalysis.text} targetRole={atsAnalysis.targetRole} /> : null}
         </div>
 
         <Card className={createRoute ? "relative mx-auto w-full max-w-6xl overflow-hidden p-5 sm:p-6" : "hidden"}>
