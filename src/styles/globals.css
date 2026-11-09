@@ -57,8 +57,14 @@ html.dark ::-webkit-scrollbar-thumb { background: #465346; background-clip: padd
 }
 .ai-orb { animation: ai-float 3s ease-in-out infinite; }
 .ai-message { animation: ai-message-in .35s ease-out both; }
+.horizontal-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.horizontal-scroll::-webkit-scrollbar { display: none; }
+.dialog-backdrop { animation: dialog-fade-in .18s ease-out both; }
+.dialog-panel { animation: dialog-panel-in .22s cubic-bezier(.22,1,.36,1) both; }
+@keyframes dialog-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialog-panel-in { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .ai-orb, .ai-message { animation: none; }
+  .ai-orb, .ai-message, .dialog-backdrop, .dialog-panel { animation: none; }
 }
 
 @layer components {
