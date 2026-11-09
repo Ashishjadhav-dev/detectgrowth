@@ -58,11 +58,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return <SessionContext.Provider value={user}><ToastProvider>
-    <div className="min-h-screen lg:flex">
+    <div className="min-h-screen overflow-x-hidden lg:flex">
       <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 overflow-x-hidden">
         <Topbar onMenuClick={() => setMobileNavOpen(true)} />
-        <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-[1600px] p-4 md:p-6 lg:p-7">{children}</main>
+        <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-[1600px] px-3 py-4 sm:p-4 md:p-6 lg:p-7">{children}</main>
       </div>
     </div>
   </ToastProvider></SessionContext.Provider>;
