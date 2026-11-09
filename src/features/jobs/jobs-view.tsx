@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, Bookmark, BriefcaseBusiness, CalendarDays, ChevronDown, MapPin, RefreshCw, Search, Settings2, SlidersHorizontal, X } from "lucide-react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { AlertCircle, ArrowUpRight, CalendarDays, MapPin, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SaveJob } from "@/components/jobs/save-job";
 import { Dialog } from "@/components/ui/dialog";
 import { JobsToolbar, type Workplace } from "@/components/jobs/jobs-toolbar";
 import { JobAlert } from "@/components/jobs/job-alert";
-import type { JobListing, JobSource, JobsResponse } from "@/types/jobs";
-
-const workplaceOptions = ["Any workplace", "Remote", "Hybrid", "On-site"] as const;
+import type { EmploymentTypeFilter, IndiaLocationFilter, JobListing, JobSource, JobsResponse, PostedWithinFilter } from "@/types/jobs";
+import { matchesRelatedRoleQuery, matchesRoleQuery, searchableJobText } from "@/lib/jobs-search";
 
 function friendlyLabel(value: string) {
   return value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -109,28 +107,49 @@ function JobsLoadingSkeleton() {
 export function JobsView() {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => { const media = window.matchMedia("(max-width: 1023px)"); const update = () => setIsMobile(media.matches); update(); media.addEventListener("change", update); return () => media.removeEventListener("change", update); }, []);
-  const [query, setQuery] = useState("accenture");
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [workplaceFilter, setWorkplaceFilter] = useState<Workplace>("Any workplace");
+  const [locationFilter, setLocationFilter] = useState<IndiaLocationFilter>("All India");
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState<EmploymentTypeFilter>("Any type");
+  const [postedWithin, setPostedWithin] = useState<PostedWithinFilter>("Any time");
   const [sort, setSort] = useState("Newest");
-  const [greenhouseBoards, setGreenhouseBoards] = useState("airbnb");
-  const [leverBoards, setLeverBoards] = useState("netflix");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const jobsQuery = useQuery<JobsResponse, Error>({
-    queryKey: ["jobs", { query, greenhouseBoards, leverBoards }],
-    queryFn: async () => {
-    const params = new URLSearchParams({ greenhouse: greenhouseBoards, lever: leverBoards, search: query.trim() });
-      const response = await fetch(`/api/jobs?${params}`, { cache: "no-store" });
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+  const jobsQuery = useInfiniteQuery<JobsResponse, Error>({
+    queryKey: ["jobs", { query: debouncedQuery, locationFilter, employmentTypeFilter, postedWithin }],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam, signal }) => {
+      const params = new URLSearchParams({ search: debouncedQuery, location: locationFilter, employmentType: employmentTypeFilter, postedWithin, page: String(pageParam), pageSize: "100" });
+      const response = await fetch(`/api/jobs?${params}`, { cache: "no-store", signal });
       if (!response.ok) throw new Error("Unable to load job feeds");
       return response.json() as Promise<JobsResponse>;
     },
+    getNextPageParam: (lastPage) => lastPage.meta?.hasNextPage ? lastPage.meta.page + 1 : undefined,
     placeholderData: (previous) => previous,
+    staleTime: 2 * 60_000,
+    gcTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    retry: 2,
   });
-  const data = jobsQuery.data ?? null;
+  const data = useMemo<JobsResponse | null>(() => {
+    const pages = jobsQuery.data?.pages ?? [];
+    if (!pages.length) return null;
+    const jobs = [...new Map(pages.flatMap((page) => page.jobs).map((job) => [job.id, job])).values()];
+    const lastPage = pages[pages.length - 1];
+    return { jobs, sources: Object.assign({}, ...pages.map((page) => page.sources)), fetchedAt: lastPage.fetchedAt, meta: lastPage.meta };
+  }, [jobsQuery.data]);
   const loading = jobsQuery.isLoading;
   const error = jobsQuery.error?.message ?? null;
+  const isDebouncing = query.trim() !== debouncedQuery;
   const loadJobs = () => { void jobsQuery.refetch(); };
+  const loadMore = () => { void jobsQuery.fetchNextPage(); };
 
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
@@ -144,27 +163,32 @@ export function JobsView() {
   }, []);
 
   const filteredJobs = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const normalized = debouncedQuery.toLowerCase();
     return [...(data?.jobs ?? [])].filter((job) => {
-      const searchable = `${job.title} ${job.company} ${job.location} ${job.department} ${job.employmentType} ${job.source}`.toLowerCase();
-      return (!normalized || searchable.includes(normalized)) && (!selectedSources.length || selectedSources.includes(job.source)) && (workplaceFilter === "Any workplace" || job.workplace === workplaceFilter);
+      const searchable = searchableJobText(job);
+      const locationAliases: Record<string, string[]> = { Bengaluru: ["bengaluru", "bangalore"], Mumbai: ["mumbai"], "Delhi NCR": ["delhi", "new delhi", "gurugram", "gurgaon", "noida"], Hyderabad: ["hyderabad"], Pune: ["pune"], Chennai: ["chennai", "madras"], Gurugram: ["gurugram", "gurgaon"], Noida: ["noida"], Kolkata: ["kolkata", "calcutta"], Ahmedabad: ["ahmedabad"], Kochi: ["kochi", "cochin"], Jaipur: ["jaipur"] };
+      const locationMatches = locationFilter === "All India" || (locationFilter === "Remote India" && job.workplace === "Remote") || (locationAliases[locationFilter] ?? [locationFilter.toLowerCase()]).some((alias) => searchable.includes(alias));
+      const queryMatches = data?.meta?.fallbackKind === "recent" ? true : data?.meta?.isFallback ? matchesRelatedRoleQuery(job, normalized) : matchesRoleQuery(job, normalized);
+      return (!normalized || queryMatches) && (!selectedSources.length || selectedSources.includes(job.source)) && (workplaceFilter === "Any workplace" || job.workplace === workplaceFilter) && (data?.meta?.isFallback || locationMatches);
     }).sort((a, b) => sort === "Company A–Z" ? a.company.localeCompare(b.company) : (new Date(b.postedAt ?? 0).getTime() - new Date(a.postedAt ?? 0).getTime()));
-  }, [data, query, selectedSources, sort, workplaceFilter]);
+  }, [data, debouncedQuery, selectedSources, sort, workplaceFilter, locationFilter]);
 
   const sourceOptions = ["All sources", ...Object.keys(data?.sources ?? {})];
   const selectedJob = filteredJobs.find((job) => job.id === selectedJobId) ?? filteredJobs[0];
-  return <div className="-mx-4 -my-4 flex min-h-[calc(100vh-4rem)] flex-col bg-white md:-mx-6 lg:-mx-7 lg:h-[calc(100vh-4.25rem)] lg:overflow-hidden">
-    <JobsToolbar query={query} setQuery={setQuery} searchRef={searchRef} sourceOptions={sourceOptions} selectedSources={selectedSources} setSelectedSources={setSelectedSources} workplaceFilter={workplaceFilter} setWorkplaceFilter={setWorkplaceFilter} sort={sort} setSort={setSort} greenhouseBoards={greenhouseBoards} setGreenhouseBoards={setGreenhouseBoards} leverBoards={leverBoards} setLeverBoards={setLeverBoards} loading={jobsQuery.isFetching} loadJobs={loadJobs} resultCount={filteredJobs.length} totalCount={data?.jobs.length ?? 0} />
-    <JobAlert query={query} workplace={workplaceFilter} />
-    {error ? <div className="mx-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 md:mx-6 lg:mx-7">{error}. Try refreshing the feed.</div> : null}
+  return <div className="-mx-4 -my-4 flex min-h-[calc(100vh-4rem)] flex-col bg-white md:-mx-6 md:-my-6 lg:-mx-7 lg:-my-7 lg:h-[calc(100vh-4.25rem)] lg:overflow-hidden" aria-busy={jobsQuery.isFetching}>
+    <JobsToolbar query={query} setQuery={setQuery} searchRef={searchRef} sourceOptions={sourceOptions} selectedSources={selectedSources} setSelectedSources={setSelectedSources} workplaceFilter={workplaceFilter} setWorkplaceFilter={setWorkplaceFilter} locationFilter={locationFilter} setLocationFilter={setLocationFilter} employmentTypeFilter={employmentTypeFilter} setEmploymentTypeFilter={setEmploymentTypeFilter} postedWithin={postedWithin} setPostedWithin={setPostedWithin} sort={sort} setSort={setSort} loading={jobsQuery.isFetching || isDebouncing} loadJobs={loadJobs} resultCount={filteredJobs.length} totalCount={data?.meta?.total ?? data?.jobs.length ?? 0} />
+    {jobsQuery.isFetching && !loading ? <div className="h-0.5 w-full overflow-hidden bg-primary-soft" role="status" aria-label="Refreshing job listings"><div className="h-full w-1/3 animate-[jobs-progress_1.2s_ease-in-out_infinite] rounded-full bg-primary" /></div> : null}
+    <JobAlert query={debouncedQuery} workplace={workplaceFilter} />
+    {error ? <div className="mx-4 mt-3 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 md:mx-6 lg:mx-7"><AlertCircle className="mt-0.5 size-4 shrink-0" /><span>{error}. Try refreshing the feed.</span></div> : null}
     <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 md:px-6 lg:overflow-hidden lg:px-7">
     {loading ? <JobsLoadingSkeleton /> : filteredJobs.length ? <>
+      {data?.meta?.isFallback ? <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">No exact matches found. {data.meta.fallbackKind === "related" ? <>Showing related listings for <strong>{debouncedQuery}</strong>.</> : <>Showing recent listings while more sources are searched.</>}</div> : null}
       <div className="lg:hidden"><Dialog open={isMobile && Boolean(selectedJobId && selectedJob)} title="Job details" onClose={() => setSelectedJobId(null)}>{selectedJob ? <JobDetail job={selectedJob} /> : null}</Dialog></div>
       <div className="grid min-h-0 gap-5 lg:h-full lg:grid-cols-[minmax(300px,390px)_minmax(0,1fr)] lg:items-start">
-        <div className="min-w-0 space-y-3 lg:h-full lg:overflow-y-auto lg:pr-2"><div className="sticky top-0 z-10 flex items-center justify-between bg-white/95 px-1 py-2 backdrop-blur"><h2 className="text-sm font-semibold text-ink">Results</h2><span className="text-xs text-muted">{filteredJobs.length.toLocaleString()} jobs</span></div>{filteredJobs.map((job) => <JobListItem key={job.id} job={job} selected={job.id === selectedJob?.id} onSelect={() => setSelectedJobId(job.id)} />)}</div>
+        <div className="min-w-0 space-y-3 lg:h-full lg:overflow-y-auto lg:pr-2"><div className="sticky top-0 z-10 flex items-center justify-between bg-white/95 px-1 py-2 backdrop-blur"><h2 className="text-sm font-semibold text-ink">Results</h2><span className="text-xs text-muted">{filteredJobs.length.toLocaleString()} jobs</span></div>{filteredJobs.map((job) => <JobListItem key={job.id} job={job} selected={job.id === selectedJob?.id} onSelect={() => setSelectedJobId(job.id)} />)}{jobsQuery.hasNextPage ? <Button variant="secondary" className="w-full" onClick={loadMore} disabled={jobsQuery.isFetchingNextPage}>{jobsQuery.isFetchingNextPage ? "Loading more…" : "Load more jobs"}</Button> : null}</div>
         <div className="hidden min-w-0 lg:block lg:max-h-full lg:overflow-y-auto lg:pt-14">{selectedJob ? <JobDetail job={selectedJob} /> : null}</div>
       </div>
-    </> : <Card className="glass-card p-12 text-center"><div className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary-soft text-primary"><Search className="size-5" /></div><h2 className="mt-4 font-semibold text-ink">No openings found</h2><p className="mt-2 text-sm text-muted">Try a broader search or clear one of your filters.</p><button onClick={() => { setQuery(""); setSelectedSources([]); setWorkplaceFilter("Any workplace"); }} className="mt-4 text-sm font-semibold text-primary">Clear filters</button></Card>}
+    </> : <Card className="glass-card p-12 text-center"><div className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary-soft text-primary"><Search className="size-5" /></div><h2 className="mt-4 font-semibold text-ink">No openings found</h2><p className="mt-2 text-sm text-muted">Try a broader search or clear one of your filters.</p><button onClick={() => { setQuery(""); setSelectedSources([]); setWorkplaceFilter("Any workplace"); setLocationFilter("All India"); setEmploymentTypeFilter("Any type"); setPostedWithin("Any time"); }} className="mt-4 text-sm font-semibold text-primary">Clear filters</button></Card>}
     </div>
   </div>;
 }

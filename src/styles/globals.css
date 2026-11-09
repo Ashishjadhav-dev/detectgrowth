@@ -42,6 +42,10 @@ html.dark ::-webkit-scrollbar-thumb { background: #465346; background-clip: padd
 @keyframes skeleton-shimmer {
   100% { transform: translateX(100%); }
 }
+@keyframes jobs-progress {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(340%); }
+}
 @keyframes ai-float {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-3px) rotate(4deg); }

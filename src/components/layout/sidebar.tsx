@@ -15,6 +15,7 @@ import {
   FileText,
   Globe2,
   Gauge,
+  Handshake,
   MessageCircle,
   Radar,
   Target,
@@ -29,6 +30,7 @@ const navGroups = [
     label: "MAIN",
     items: [
       ["Dashboard", "/dashboard", Gauge],
+      ["Leads", "/leads", Handshake],
     ],
   },
   {

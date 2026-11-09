@@ -6,12 +6,14 @@ RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/detectgrowth-api ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/detectgrowth-worker ./cmd/worker
 
 FROM alpine:3.20
 
 RUN adduser -D -H -u 10001 appuser
 WORKDIR /app
 COPY --from=build /out/detectgrowth-api ./detectgrowth-api
+COPY --from=build /out/detectgrowth-worker ./detectgrowth-worker
 USER appuser
 
 EXPOSE 8080

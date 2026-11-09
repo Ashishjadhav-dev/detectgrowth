@@ -13,6 +13,19 @@ function error(message: string, status = 400) {
 
 async function hasSession(request: NextRequest) {
   if (request.cookies.get("detectgrowth_guest")?.value === "1") return true;
+  const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
+  if (/^https?:\/\//i.test(configuredApiUrl)) {
+    try {
+      const response = await fetch(`${configuredApiUrl.replace(/\/$/, "")}/api/v1/me`, {
+        headers: { Accept: "application/json", Cookie: request.headers.get("cookie") ?? "" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
   const token = request.cookies.get("detectgrowth_session")?.value;
   if (!token) return false;
   return transact((db) => Boolean(db.sessions[tokenHash(token)]));
