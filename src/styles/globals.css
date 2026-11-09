@@ -59,6 +59,12 @@ html.dark ::-webkit-scrollbar-thumb { background: #465346; background-clip: padd
 .ai-message { animation: ai-message-in .35s ease-out both; }
 .horizontal-scroll { scrollbar-width: none; -ms-overflow-style: none; }
 .horizontal-scroll::-webkit-scrollbar { display: none; }
+.jobs-toolbar > div > div:nth-child(2) { scrollbar-width: none; }
+.jobs-toolbar > div > div:nth-child(2)::-webkit-scrollbar { display: none; }
+@media (max-width: 1023px) {
+  .jobs-toolbar > div > div:nth-child(2) { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .jobs-toolbar > div > div:nth-child(2) > * { flex-shrink: 0; }
+}
 .dialog-backdrop { animation: dialog-fade-in .18s ease-out both; }
 .dialog-panel { animation: dialog-panel-in .22s cubic-bezier(.22,1,.36,1) both; }
 .animate-fade-up { animation: resume-fade-up .42s cubic-bezier(.22,1,.36,1) both; }
