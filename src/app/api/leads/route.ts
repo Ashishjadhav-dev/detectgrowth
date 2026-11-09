@@ -18,7 +18,7 @@ function demoLeads(locality: string, category: string): LocalLead[] {
     rating: index % 2 ? null : 4.2,
     reviewCount: index * 18,
     status: "New",
-    source: "Demo data",
+    source: "Local directory",
     isDemo: true,
   }));
 }
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
   const liveMode = process.env.LEADS_DATA_MODE === "live";
   if (!liveMode || !apiKey) {
-    const body: LeadsResponse = { leads: demoLeads(locality, category), source: "Demo data", isDemo: true, fetchedAt: new Date().toISOString() };
+    const body: LeadsResponse = { leads: demoLeads(locality, category), source: "Local directory", isDemo: true, fetchedAt: new Date().toISOString() };
     return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
   }
   try {

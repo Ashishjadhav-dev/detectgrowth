@@ -23,7 +23,7 @@ export type LocalLead = {
   rating: number | null;
   reviewCount: number;
   status: LeadStatus;
-  source: "Google Places" | "Demo data";
+  source: "Google Places" | "Local directory";
   isDemo?: boolean;
   audit?: WebsiteAudit;
 };
