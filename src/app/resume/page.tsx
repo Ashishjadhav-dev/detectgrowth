@@ -218,13 +218,12 @@ export default function ResumeWorkspace() {
 
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-5">
-      <div>
+      <div className="animate-fade-up">
         <Badge>Resume workspace</Badge>
-        <h1 className="page-title mt-3">Your resume, ready for the next opportunity.</h1>
-        <p className="meta mt-2 max-w-2xl">Upload a resume you already have or create a polished one from your professional details.</p>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-3"><div><h1 className="page-title">Your resume, ready for the next opportunity.</h1><p className="meta mt-2 max-w-2xl">Upload a resume you already have or create a polished one from your professional details.</p></div><div className="hidden items-center gap-2 text-xs text-muted sm:flex"><span className="grid size-6 place-items-center rounded-full bg-primary-soft text-primary">1</span><span>Build</span><span className="h-px w-5 bg-border" /><span className="grid size-6 place-items-center rounded-full bg-primary-soft text-primary">2</span><span>Analyze</span></div></div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5">
+      <div className="animate-fade-up grid grid-cols-1 gap-5 [animation-delay:80ms]">
         <div className={createRoute ? "hidden" : "space-y-5"}>
         {!analyzing && !atsAnalysis && !analysisError ? <Card className="h-fit p-5 sm:p-6">
           <div className="flex items-start gap-3">
