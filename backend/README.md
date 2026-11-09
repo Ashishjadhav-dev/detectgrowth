@@ -19,6 +19,19 @@ The current local foundation includes:
 
 The free-source signal worker is available at `cmd/worker`. It polls GDELT and Hacker News and stores deduplicated events in PostgreSQL.
 
+The worker synchronizes public job feeds from Arbeitnow, Remotive, and Himalayas, plus
+optional Adzuna India, Greenhouse, and Lever feeds. Adzuna requires
+`ADZUNA_APP_ID` and `ADZUNA_APP_KEY`. Greenhouse and Lever require configured
+company board slugs because their public APIs expose one company board at a
+time. The worker also supports optional
+Greenhouse or Lever company boards into the `job_listings` table. Configure
+`JOB_POLL_INTERVAL`, `JOB_GREENHOUSE_BOARDS`, and `JOB_LEVER_BOARDS` only for
+provider ingestion. Users search the unified indexed catalog by role, location,
+location, workplace, employment type, posting age, source, and pagination; company board
+slugs are never required in the search request.
+When `RESEND_API_KEY` is configured, the worker also evaluates due daily and
+weekly job alerts and records `last_sent_at` only after successful delivery.
+
 The dashboard refreshes its API data every 30 seconds in the browser. The worker adds public-source signals from GDELT and Hacker News; LinkedIn, Google, and Instagram require provider credentials and are not faked as free public APIs.
 
 ## Run locally
@@ -40,6 +53,12 @@ Optional worker settings:
 ```env
 SIGNAL_POLL_INTERVAL=10m
 GDELT_QUERY=startup OR funding OR hiring
+JOB_POLL_INTERVAL=30m
+# Optional provider ingestion; leave blank unless you explicitly want these boards.
+JOB_GREENHOUSE_BOARDS=
+JOB_LEVER_BOARDS=
+ADZUNA_APP_ID=
+ADZUNA_APP_KEY=
 ```
 
 Start local infrastructure from the repository root:
@@ -52,6 +71,10 @@ done
 ```
 
 The API listens on `http://localhost:8080` by default. Set `PORT` to change the port.
+When `REDIS_URL` is configured, the API applies a shared per-IP rate limit of
+120 requests per minute. If Redis is unavailable at startup, the API logs the
+condition and fails open so health and core service availability are not taken
+down by the limiter; production deployments should monitor that warning.
 
 ## Deploy from this repository
 

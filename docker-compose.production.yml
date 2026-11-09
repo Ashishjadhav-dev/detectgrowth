@@ -1,0 +1,111 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-detectgrowth}
+      POSTGRES_USER: ${POSTGRES_USER:-detectgrowth}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrations:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/migrations:/migrations:ro
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-detectgrowth}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-detectgrowth}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "set -eu; for migration in /migrations/*.sql; do echo Applying $$migration; psql \"$$DATABASE_URL\" -v ON_ERROR_STOP=1 -f \"$$migration\"; done"
+    restart: "no"
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      PORT: 8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-detectgrowth}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-detectgrowth}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      APP_ENV: ${APP_ENV:-production}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-DetectGrowth <security@example.com>}
+    expose:
+      - "8080"
+    ports:
+      - "${API_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    image: ${WORKER_IMAGE:-detectgrowth-api}
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    command: ["./detectgrowth-worker"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-detectgrowth}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-detectgrowth}
+      REDIS_URL: redis://redis:6379/0
+      SIGNAL_POLL_INTERVAL: ${SIGNAL_POLL_INTERVAL:-10m}
+      JOB_POLL_INTERVAL: ${JOB_POLL_INTERVAL:-30m}
+      JOB_GREENHOUSE_BOARDS: ${JOB_GREENHOUSE_BOARDS:-airbnb}
+      JOB_LEVER_BOARDS: ${JOB_LEVER_BOARDS:-netflix}
+      GDELT_QUERY: ${GDELT_QUERY:-startup OR funding OR hiring}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-DetectGrowth <security@example.com>}
+
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL:-http://localhost:8080}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-}
+      JOBS_DATA_MODE: ${JOBS_DATA_MODE:-live}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+volumes:
+  postgres-data:
+  redis-data:

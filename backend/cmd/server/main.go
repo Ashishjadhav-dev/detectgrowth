@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -29,6 +31,22 @@ type Company struct {
 	Status        string    `json:"status"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+type JobListing struct {
+	ID             string          `json:"id"`
+	Title          string          `json:"title"`
+	Company        string          `json:"company"`
+	Location       string          `json:"location"`
+	Workplace      string          `json:"workplace"`
+	Source         string          `json:"source"`
+	Tags           json.RawMessage `json:"tags"`
+	Description    string          `json:"description"`
+	URL            string          `json:"url"`
+	PostedAt       *time.Time      `json:"postedAt"`
+	Department     string          `json:"department"`
+	EmploymentType string          `json:"employmentType"`
+	LogoURL        string          `json:"logoUrl,omitempty"`
 }
 
 type apiResponse struct {
@@ -50,6 +68,7 @@ type apiErrorBody struct {
 type app struct {
 	db          *sql.DB
 	workspaceID string
+	redis       *redis.Client
 }
 
 func main() {
@@ -73,7 +92,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("initialize workspace: %v", err)
 	}
-	api := &app{db: db, workspaceID: workspaceID}
+	var redisClient *redis.Client
+	if configuredRedis := os.Getenv("REDIS_URL"); configuredRedis != "" {
+		options, parseErr := redis.ParseURL(configuredRedis)
+		if parseErr != nil {
+			log.Printf("invalid REDIS_URL; rate limiting disabled: %v", parseErr)
+		} else {
+			redisClient = redis.NewClient(options)
+			pingContext, pingCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if pingErr := redisClient.Ping(pingContext).Err(); pingErr != nil {
+				log.Printf("Redis unavailable; rate limiting will fail open: %v", pingErr)
+				_ = redisClient.Close()
+				redisClient = nil
+			}
+			pingCancel()
+		}
+	}
+	if redisClient != nil {
+		defer redisClient.Close()
+	}
+	api := &app{db: db, workspaceID: workspaceID, redis: redisClient}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", healthHandler)
 	mux.HandleFunc("POST /api/v1/auth/sign-up", api.signUp)
@@ -91,6 +129,14 @@ func main() {
 	mux.HandleFunc("GET /api/v1/integrations", api.listIntegrations)
 	mux.HandleFunc("PATCH /api/v1/integrations/{provider}", api.updateIntegration)
 	mux.HandleFunc("GET /api/v1/events", api.events)
+	mux.HandleFunc("GET /api/v1/jobs", api.listJobs)
+	mux.HandleFunc("GET /api/v1/bookmarks", api.listBookmarks)
+	mux.HandleFunc("POST /api/v1/bookmarks", api.createBookmark)
+	mux.HandleFunc("DELETE /api/v1/bookmarks/{bookmarkID}", api.deleteBookmark)
+	mux.HandleFunc("GET /api/v1/jobAlerts", api.listJobAlerts)
+	mux.HandleFunc("POST /api/v1/jobAlerts", api.createJobAlert)
+	mux.HandleFunc("PATCH /api/v1/jobAlerts/{alertID}", api.updateJobAlert)
+	mux.HandleFunc("DELETE /api/v1/jobAlerts/{alertID}", api.deleteJobAlert)
 	mux.HandleFunc("GET /api/v1/companies", api.listCompanies)
 	mux.HandleFunc("POST /api/v1/companies", api.createCompany)
 	mux.HandleFunc("GET /api/v1/companies/{companyID}", api.getCompany)
@@ -124,7 +170,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + port,
-		Handler:           withMiddleware(mux),
+		Handler:           withMiddleware(api, mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -1004,6 +1050,333 @@ func (a *app) dashboardActivityHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
 }
 
+func (a *app) listJobs(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len(query) > 200 {
+		query = query[:200]
+	}
+	source := strings.TrimSpace(r.URL.Query().Get("source"))
+	workplace := strings.TrimSpace(r.URL.Query().Get("workplace"))
+	location := strings.TrimSpace(r.URL.Query().Get("location"))
+	employmentType := strings.TrimSpace(r.URL.Query().Get("employmentType"))
+	postedWithin := strings.TrimSpace(r.URL.Query().Get("postedWithin"))
+	page := parsePositiveInt(r.URL.Query().Get("page"), 1, 100000)
+	pageSize := parsePositiveInt(r.URL.Query().Get("pageSize"), 25, 100)
+	args := make([]any, 0, 6)
+	where := []string{"status = 'active'"}
+	if query != "" {
+		args = append(args, query)
+		where = append(where, fmt.Sprintf("to_tsvector('simple', title || ' ' || company || ' ' || location || ' ' || department || ' ' || employment_type || ' ' || description) @@ websearch_to_tsquery('simple', $%d)", len(args)))
+	}
+	if source != "" {
+		args = append(args, source)
+		where = append(where, fmt.Sprintf("source = $%d", len(args)))
+	}
+	if workplace != "" && workplace != "Any workplace" {
+		args = append(args, workplace)
+		where = append(where, fmt.Sprintf("workplace = $%d", len(args)))
+	}
+	if location != "" && location != "Any location" {
+		locationAliases := map[string][]string{
+			"All India": {"india", "bengaluru", "bangalore", "mumbai", "delhi", "gurugram", "gurgaon", "noida", "hyderabad", "pune", "chennai", "kolkata", "ahmedabad", "kochi", "jaipur", "remote"},
+			"Bengaluru": {"bengaluru", "bangalore"}, "Delhi NCR": {"delhi", "new delhi", "gurugram", "gurgaon", "noida"},
+			"Gurugram": {"gurugram", "gurgaon"}, "Noida": {"noida"}, "Chennai": {"chennai", "madras"}, "Kolkata": {"kolkata", "calcutta"},
+			"Kochi": {"kochi", "cochin"}, "Remote India": {"remote", "india"},
+		}
+		aliases := locationAliases[location]
+		if len(aliases) == 0 {
+			aliases = []string{strings.ToLower(location)}
+		}
+		parts := make([]string, 0, len(aliases))
+		for _, alias := range aliases {
+			args = append(args, "%"+alias+"%")
+			parts = append(parts, fmt.Sprintf("LOWER(location) LIKE $%d", len(args)))
+		}
+		locationClause := "(" + strings.Join(parts, " OR ") + ")"
+		if location == "All India" || location == "Remote India" {
+			locationClause = "(workplace = 'Remote' OR " + locationClause + ")"
+		}
+		where = append(where, locationClause)
+	}
+	if employmentType != "" && employmentType != "Any type" {
+		args = append(args, "%"+employmentType+"%")
+		where = append(where, fmt.Sprintf("LOWER(employment_type) LIKE LOWER($%d)", len(args)))
+	}
+	if postedWithin != "" && postedWithin != "Any time" {
+		duration := map[string]time.Duration{"24 hours": 24 * time.Hour, "7 days": 7 * 24 * time.Hour, "30 days": 30 * 24 * time.Hour}[postedWithin]
+		if duration > 0 {
+			args = append(args, time.Now().UTC().Add(-duration))
+			where = append(where, fmt.Sprintf("posted_at >= $%d", len(args)))
+		}
+	}
+	whereSQL := strings.Join(where, " AND ")
+	var total int
+	if err := a.db.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM job_listings WHERE "+whereSQL, args...).Scan(&total); err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to count jobs.")
+		return
+	}
+	args = append(args, pageSize, (page-1)*pageSize)
+	rows, err := a.db.QueryContext(r.Context(), `
+		SELECT id::text, title, company, location, workplace, source, tags, description, url,
+		       posted_at, department, employment_type, COALESCE(logo_url, '')
+		FROM job_listings WHERE `+whereSQL+` ORDER BY posted_at DESC NULLS LAST, updated_at DESC LIMIT $`+strconv.Itoa(len(args)-1)+` OFFSET $`+strconv.Itoa(len(args)), args...)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load jobs.")
+		return
+	}
+	defer rows.Close()
+	jobs := make([]JobListing, 0)
+	for rows.Next() {
+		var job JobListing
+		if err := rows.Scan(&job.ID, &job.Title, &job.Company, &job.Location, &job.Workplace, &job.Source, &job.Tags, &job.Description, &job.URL, &job.PostedAt, &job.Department, &job.EmploymentType, &job.LogoURL); err != nil {
+			writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read jobs.")
+			return
+		}
+		if len(job.Tags) == 0 {
+			job.Tags = json.RawMessage("[]")
+		}
+		jobs = append(jobs, job)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read jobs.")
+		return
+	}
+	writeJSON(w, http.StatusOK, apiResponse{
+		Data: map[string]any{
+			"jobs":      jobs,
+			"sources":   map[string]any{},
+			"fetchedAt": time.Now().UTC(),
+		},
+		Meta: map[string]any{"requestId": requestID(r), "page": page, "pageSize": pageSize, "total": total, "hasNextPage": page*pageSize < total},
+	})
+}
+
+func parsePositiveInt(value string, fallback, maximum int) int {
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 1 {
+		return fallback
+	}
+	if parsed > maximum {
+		return maximum
+	}
+	return parsed
+}
+
+func (a *app) jobUser(r *http.Request) (string, string, error) {
+	user, err := a.sessionUser(r)
+	if err != nil {
+		return "", "", err
+	}
+	workspaceID, _ := user.Workspace["id"].(string)
+	if user.ID == "" || workspaceID == "" {
+		return "", "", sql.ErrNoRows
+	}
+	return user.ID, workspaceID, nil
+}
+
+func (a *app) listBookmarks(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, err := a.jobUser(r)
+	if err != nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Sign in is required.")
+		return
+	}
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, job_key, title, created_at FROM job_bookmarks WHERE user_id = $1 AND workspace_id = $2 ORDER BY created_at DESC`, userID, workspaceID)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load saved jobs.")
+		return
+	}
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() {
+		var id, jobKey, title string
+		var created time.Time
+		if err := rows.Scan(&id, &jobKey, &title, &created); err != nil {
+			writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read saved jobs.")
+			return
+		}
+		data = append(data, map[string]any{"id": id, "jobId": jobKey, "title": title, "createdAt": created})
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) createBookmark(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, err := a.jobUser(r)
+	if err != nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Sign in is required.")
+		return
+	}
+	var input struct {
+		JobID string `json:"jobId"`
+		Title string `json:"title"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&input) != nil || strings.TrimSpace(input.JobID) == "" || len(input.JobID) > 300 {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "A valid jobId is required.")
+		return
+	}
+	var id, jobID, title string
+	var created time.Time
+	err = a.db.QueryRowContext(r.Context(), `INSERT INTO job_bookmarks (workspace_id, user_id, job_key, title) VALUES ($1,$2,$3,$4) ON CONFLICT (workspace_id, user_id, job_key) DO UPDATE SET title = EXCLUDED.title RETURNING id::text, job_key, title, created_at`, workspaceID, userID, strings.TrimSpace(input.JobID), strings.TrimSpace(input.Title)).Scan(&id, &jobID, &title, &created)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to save this job.")
+		return
+	}
+	writeJSON(w, http.StatusCreated, apiResponse{Data: map[string]any{"id": id, "jobId": jobID, "title": title, "createdAt": created}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) deleteBookmark(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, err := a.jobUser(r)
+	if err != nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Sign in is required.")
+		return
+	}
+	result, err := a.db.ExecContext(r.Context(), `DELETE FROM job_bookmarks WHERE id = $1 AND user_id = $2 AND workspace_id = $3`, r.PathValue("bookmarkID"), userID, workspaceID)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to remove this saved job.")
+		return
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Saved job not found.")
+		return
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": r.PathValue("bookmarkID"), "deleted": true}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) listJobAlerts(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, err := a.jobUser(r)
+	if err != nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Sign in is required.")
+		return
+	}
+	rows, err := a.db.QueryContext(r.Context(), `SELECT id::text, query, workplace, frequency, enabled, updated_at FROM job_alerts WHERE user_id = $1 AND workspace_id = $2 ORDER BY updated_at DESC`, userID, workspaceID)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to load job alerts.")
+		return
+	}
+	defer rows.Close()
+	data := make([]map[string]any, 0)
+	for rows.Next() {
+		var id, query, workplace, frequency string
+		var enabled bool
+		var updated time.Time
+		if err := rows.Scan(&id, &query, &workplace, &frequency, &enabled, &updated); err != nil {
+			writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to read job alerts.")
+			return
+		}
+		data = append(data, map[string]any{"id": id, "query": query, "workplace": workplace, "frequency": frequency, "enabled": enabled, "updatedAt": updated})
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: data, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) createJobAlert(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, err := a.jobUser(r)
+	if err != nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Sign in is required.")
+		return
+	}
+	var input struct {
+		Query     string `json:"query"`
+		Workplace string `json:"workplace"`
+		Frequency string `json:"frequency"`
+		Enabled   *bool  `json:"enabled"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&input) != nil {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid alert payload.")
+		return
+	}
+	input.Query = strings.TrimSpace(input.Query)
+	input.Workplace = strings.TrimSpace(input.Workplace)
+	if input.Workplace == "" {
+		input.Workplace = "Any workplace"
+	}
+	if input.Frequency == "" {
+		input.Frequency = "daily"
+	}
+	enabled := true
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+	if len(input.Query) > 200 || len(input.Workplace) > 80 || (input.Frequency != "daily" && input.Frequency != "weekly") {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid alert query, workplace, or frequency.")
+		return
+	}
+	var id, query, workplace, frequency string
+	var savedEnabled bool
+	var updated time.Time
+	err = a.db.QueryRowContext(r.Context(), `INSERT INTO job_alerts (workspace_id, user_id, query, workplace, frequency, enabled) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (workspace_id, user_id, query, workplace) DO UPDATE SET frequency=EXCLUDED.frequency, enabled=EXCLUDED.enabled, updated_at=now() RETURNING id::text, query, workplace, frequency, enabled, updated_at`, workspaceID, userID, input.Query, input.Workplace, input.Frequency, enabled).Scan(&id, &query, &workplace, &frequency, &savedEnabled, &updated)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to save job alert.")
+		return
+	}
+	writeJSON(w, http.StatusCreated, apiResponse{Data: map[string]any{"id": id, "query": query, "workplace": workplace, "frequency": frequency, "enabled": savedEnabled, "updatedAt": updated}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) updateJobAlert(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, err := a.jobUser(r)
+	if err != nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Sign in is required.")
+		return
+	}
+	var input struct {
+		Query     *string `json:"query"`
+		Workplace *string `json:"workplace"`
+		Frequency *string `json:"frequency"`
+		Enabled   *bool   `json:"enabled"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&input) != nil {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid alert payload.")
+		return
+	}
+	if input.Query != nil {
+		value := strings.TrimSpace(*input.Query)
+		input.Query = &value
+	}
+	if input.Workplace != nil {
+		value := strings.TrimSpace(*input.Workplace)
+		input.Workplace = &value
+	}
+	if input.Frequency != nil && *input.Frequency != "daily" && *input.Frequency != "weekly" {
+		writeError(w, r, http.StatusBadRequest, "VALIDATION_ERROR", "Frequency must be daily or weekly.")
+		return
+	}
+	var id, query, workplace, frequency string
+	var enabled bool
+	var updated time.Time
+	err = a.db.QueryRowContext(r.Context(), `UPDATE job_alerts SET query=COALESCE($1, query), workplace=COALESCE($2, workplace), frequency=COALESCE($3, frequency), enabled=COALESCE($4, enabled), updated_at=now() WHERE id=$5 AND user_id=$6 AND workspace_id=$7 RETURNING id::text, query, workplace, frequency, enabled, updated_at`, input.Query, input.Workplace, input.Frequency, input.Enabled, r.PathValue("alertID"), userID, workspaceID).Scan(&id, &query, &workplace, &frequency, &enabled, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Job alert not found.")
+		return
+	}
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to update job alert.")
+		return
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": id, "query": query, "workplace": workplace, "frequency": frequency, "enabled": enabled, "updatedAt": updated}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
+func (a *app) deleteJobAlert(w http.ResponseWriter, r *http.Request) {
+	userID, workspaceID, err := a.jobUser(r)
+	if err != nil {
+		writeError(w, r, http.StatusUnauthorized, "UNAUTHENTICATED", "Sign in is required.")
+		return
+	}
+	result, err := a.db.ExecContext(r.Context(), `DELETE FROM job_alerts WHERE id=$1 AND user_id=$2 AND workspace_id=$3`, r.PathValue("alertID"), userID, workspaceID)
+	if err != nil {
+		writeError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", "Unable to remove job alert.")
+		return
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		writeError(w, r, http.StatusNotFound, "NOT_FOUND", "Job alert not found.")
+		return
+	}
+	writeJSON(w, http.StatusOK, apiResponse{Data: map[string]any{"id": r.PathValue("alertID"), "deleted": true}, Meta: map[string]any{"requestId": requestID(r)}})
+}
+
 func (a *app) listCompanies(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	search := "%" + query + "%"
@@ -1509,7 +1882,29 @@ func (a *app) createCompany(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func withMiddleware(next http.Handler) http.Handler {
+const apiRateLimitPerMinute = 120
+
+func (a *app) allowRequest(r *http.Request) bool {
+	if a.redis == nil || r.URL.Path == "/api/v1/health" {
+		return true
+	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil || ip == "" {
+		ip = r.RemoteAddr
+	}
+	window := time.Now().UTC().Unix() / 60
+	key := fmt.Sprintf("detectgrowth:ratelimit:%s:%d", ip, window)
+	count, err := a.redis.Incr(r.Context(), key).Result()
+	if err != nil {
+		return true
+	}
+	if count == 1 {
+		_ = a.redis.Expire(r.Context(), key, 70*time.Second).Err()
+	}
+	return count <= apiRateLimitPerMinute
+}
+
+func withMiddleware(a *app, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", envOr("FRONTEND_ORIGIN", "http://localhost:3000"))
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -1518,6 +1913,11 @@ func withMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if !a.allowRequest(r) {
+			w.Header().Set("Retry-After", "60")
+			writeError(w, r, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests. Please retry shortly.")
 			return
 		}
 		next.ServeHTTP(w, r)

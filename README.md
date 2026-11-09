@@ -115,6 +115,29 @@ npm run build
 cd backend && go test ./...
 ```
 
+## One-shot container deployment
+
+The repository includes `docker-compose.production.yml` for deploying the web
+app, Go API, job/signal worker, PostgreSQL, Redis, and migrations as one
+Compose project. Copy the required production values into a shell environment
+or an uncommitted `.env` file, then run:
+
+```bash
+docker compose -f docker-compose.production.yml up -d --build
+```
+
+Required values are `POSTGRES_PASSWORD` and `JWT_SECRET`. For a public
+deployment, set `API_PUBLIC_URL` to the externally reachable Go API URL; it is
+baked into the browser bundle because the browser must be able to send session
+requests to the API. Set `FRONTEND_ORIGIN`, `APP_URL`, `COOKIE_SECURE=true`,
+and a strong `JWT_SECRET` for HTTPS production. The `migrations` service runs
+all SQL migrations before the API, worker, and web services start.
+
+This Compose deployment is a single release operation, but it still runs
+multiple containers. PostgreSQL and Redis volumes must be backed up, and the
+API/worker need a host or platform that supports persistent processes. Docker
+image builds should be performed with Docker Desktop or a CI builder enabled.
+
 ## Structure
 - `src/app` routes
 - `src/components/ui` primitives
