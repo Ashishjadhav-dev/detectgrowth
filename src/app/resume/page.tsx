@@ -82,10 +82,13 @@ export default function ResumeWorkspace() {
   const [draft, setDraft] = useState<ResumeDraft>(emptyDraft);
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saveState, setSaveState] = useState<"loading" | "saved" | "saving" | "unsaved">("loading");
+  const [draftReady, setDraftReady] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
   const [generated, setGenerated] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [creationMessage, setCreationMessage] = useState("");
+  const [resumeStep, setResumeStep] = useState(1);
   const [analyzing, setAnalyzing] = useState(false);
   const [atsAnalysis, setAtsAnalysis] = useState<ResumeAnalysis | null>(null);
   const [analysisError, setAnalysisError] = useState("");
@@ -99,11 +102,27 @@ export default function ResumeWorkspace() {
       if (storedAnalysis) setAtsAnalysis(JSON.parse(storedAnalysis) as ResumeAnalysis);
     } catch {
       // The form remains usable if local storage is unavailable.
+    } finally {
+      setDraftReady(true);
+      setSaveState("saved");
     }
   }, []);
 
+  useEffect(() => {
+    if (!draftReady) return;
+    setSaveState("saving");
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem("detectgrowth-resume-draft", JSON.stringify(draft));
+        setSaveState("saved");
+      } catch {
+        setSaveState("unsaved");
+      }
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [draft, draftReady]);
+
   const update = (field: keyof ResumeDraft, value: string) => {
-    setSaved(false);
     setDraft((current) => ({ ...current, [field]: value }));
   };
 
@@ -133,11 +152,17 @@ export default function ResumeWorkspace() {
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => chooseFile(event.target.files?.[0]);
 
   const saveDraft = () => {
+    setSaveState("saving");
     window.localStorage.setItem("detectgrowth-resume-draft", JSON.stringify(draft));
-    setSaved(true);
+    setSaveState("saved");
   };
 
   const createResume = () => {
+    if (!draft.name.trim() || !draft.headline.trim()) {
+      setCreationMessage("Add your full name and professional headline before creating the resume.");
+      return;
+    }
+    setCreationMessage("");
     saveDraft();
     setCreating(true);
     setGenerated(false);
@@ -218,13 +243,12 @@ export default function ResumeWorkspace() {
 
   return (
     <div className="mx-auto w-full max-w-[1500px] space-y-5">
-      <div>
+      <div className="animate-fade-up">
         <Badge>Resume workspace</Badge>
-        <h1 className="page-title mt-3">Your resume, ready for the next opportunity.</h1>
-        <p className="meta mt-2 max-w-2xl">Upload a resume you already have or create a polished one from your professional details.</p>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-3"><div><h1 className="page-title">Your resume, ready for the next opportunity.</h1><p className="meta mt-2 max-w-2xl">Upload a resume you already have or create a polished one from your professional details.</p></div><div className="hidden items-center gap-2 text-xs text-muted sm:flex"><span className="grid size-6 place-items-center rounded-full bg-primary-soft text-primary">1</span><span>Build</span><span className="h-px w-5 bg-border" /><span className="grid size-6 place-items-center rounded-full bg-primary-soft text-primary">2</span><span>Analyze</span></div></div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5">
+      <div className="animate-fade-up grid grid-cols-1 gap-5 [animation-delay:80ms]">
         <div className={createRoute ? "hidden" : "space-y-5"}>
         {!analyzing && !atsAnalysis && !analysisError ? <Card className="h-fit p-5 sm:p-6">
           <div className="flex items-start gap-3">
@@ -258,15 +282,21 @@ export default function ResumeWorkspace() {
           {creating ? <div className="absolute inset-0 z-20 flex min-h-[520px] items-center justify-center bg-white/95 p-6 backdrop-blur-sm"><div className="w-full max-w-sm text-center"><div className="relative mx-auto grid size-20 place-items-center rounded-3xl bg-primary-soft text-primary"><FileText className="size-9 animate-pulse" /><span className="absolute -right-1 -top-1 size-4 animate-ping rounded-full bg-primary/40" /></div><h2 className="section-title mt-6">Creating your resume</h2><p className="meta mt-2">Applying your style, organizing your content, and preparing a polished CV preview.</p><div className="mx-auto mt-6 h-2 max-w-xs overflow-hidden rounded-full bg-elevated"><div className="h-full w-2/3 animate-pulse rounded-full bg-primary" /></div><div className="mt-4 flex justify-center gap-1.5" aria-label="Creating resume"><span className="size-2 animate-bounce rounded-full bg-primary [animation-delay:-.3s]" /><span className="size-2 animate-bounce rounded-full bg-primary [animation-delay:-.15s]" /><span className="size-2 animate-bounce rounded-full bg-primary" /></div></div></div> : null}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><FileText className="size-5" /></span><div><h2 className="section-title">Create your resume</h2><p className="meta mt-1">Add the details employers need to know.</p></div></div>
-            {saved ? <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700"><Check className="size-3.5" />Draft saved</span> : null}
+            <span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${saveState === "saved" ? "bg-green-50 text-green-700" : saveState === "saving" ? "bg-primary-soft text-primary" : "bg-amber-50 text-amber-800"}`}>{saveState === "saved" ? <><Check className="size-3.5" />Saved automatically</> : saveState === "saving" ? <><LoaderCircle className="size-3.5 animate-spin" />Saving…</> : saveState === "loading" ? "Loading draft…" : "Not saved"}</span>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-border bg-elevated/50 p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold text-ink">Step {resumeStep} of 4</p><p className="text-xs text-muted">{resumeStep === 1 ? "Start with the basics" : resumeStep === 2 ? "Add contact information" : resumeStep === 3 ? "Show your experience" : "Polish and preview"}</p></div>
+            <div className="mt-3 grid grid-cols-4 gap-1.5" aria-label="Resume creation progress">{[1, 2, 3, 4].map((step) => <button key={step} type="button" onClick={() => setResumeStep(step)} aria-label={`Go to resume step ${step}`} aria-current={resumeStep === step ? "step" : undefined} className={`h-1.5 rounded-full transition-colors ${step <= resumeStep ? "bg-primary" : "bg-border"}`} />)}</div>
+            <div className="mt-3 flex items-center justify-between gap-2"><Button type="button" variant="ghost" size="sm" disabled={resumeStep === 1} onClick={() => setResumeStep((step) => Math.max(1, step - 1))}>Previous</Button><div className="hidden text-[11px] text-muted sm:block">Your draft saves automatically</div>{resumeStep < 4 ? <Button type="button" size="sm" onClick={() => setResumeStep((step) => Math.min(4, step + 1))}>Continue</Button> : <Button type="button" size="sm" variant="secondary" onClick={() => document.getElementById("resume-preview")?.scrollIntoView({ behavior: "smooth", block: "start" })}>View preview</Button>}</div>
           </div>
 
           <div className="mt-6 grid gap-5 xl:grid-cols-[1.05fr_.95fr]">
-            <div className="space-y-4">
+            <div className={`space-y-4 ${createRoute && resumeStep !== 1 ? "hidden" : ""}`}>
               <section className="rounded-2xl border border-border bg-elevated/50 p-4">
                 <div className="flex items-start gap-3"><span className="grid size-9 place-items-center rounded-xl bg-primary-soft text-primary"><Palette className="size-4" /></span><div><h3 className="text-sm font-semibold text-ink">Choose your resume style</h3><p className="mt-1 text-xs text-muted">Pick a polished layout. Your content stays ATS-friendly.</p></div></div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                  {themeOptions.map((theme) => <button key={theme.id} type="button" aria-pressed={draft.theme === theme.id} onClick={() => update("theme", theme.id)} className={`rounded-xl border p-3 text-left transition ${draft.theme === theme.id ? "border-primary bg-white shadow-sm ring-2 ring-primary/15" : "border-border bg-white/60 hover:border-primary/40"}`}><span className={`mb-2 block size-5 rounded-full ${theme.swatch}`} /><span className="block text-xs font-semibold text-ink">{theme.label}</span><span className="mt-0.5 block text-[10px] text-muted">{theme.description}</span></button>)}
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {themeOptions.map((theme) => <button key={theme.id} type="button" aria-pressed={draft.theme === theme.id} onClick={() => update("theme", theme.id)} className={`flex min-h-[104px] min-w-0 flex-col items-start justify-start rounded-2xl border p-4 text-left transition duration-200 focus-visible:ring-2 focus-visible:ring-primary/30 ${draft.theme === theme.id ? "border-primary bg-white shadow-sm ring-2 ring-primary/15" : "border-border bg-white/60 hover:border-primary/40 hover:bg-white"}`}><span className={`mb-3 grid size-7 shrink-0 place-items-center rounded-full ${theme.swatch}`}><span className="size-2 rounded-full bg-white/70" /></span><span className="block w-full truncate text-sm font-semibold text-ink">{theme.label}</span><span className="mt-1 block w-full text-xs leading-4 text-muted">{theme.description}</span></button>)}
                 </div>
               </section>
 
@@ -288,16 +318,16 @@ export default function ResumeWorkspace() {
                 </section>;
               })()}
             </div>
-            <div className="xl:sticky xl:top-24 xl:self-start"><ResumePreview draft={draft} /></div>
+            <div id="resume-preview" className={`xl:sticky xl:top-24 xl:self-start ${createRoute && resumeStep !== 4 ? "hidden" : ""}`}><ResumePreview draft={draft} /></div>
           </div>
 
           <div className="mt-6 space-y-6">
-            <section><h3 className="text-sm font-semibold text-ink">Contact details</h3><div className="mt-3 grid gap-4 sm:grid-cols-2"><Field label="Full name"><Input value={draft.name} onChange={(event) => update("name", event.target.value)} placeholder="Alex Morgan" /></Field><Field label="Headline"><Input value={draft.headline} onChange={(event) => update("headline", event.target.value)} placeholder="Growth marketer · B2B SaaS" /></Field><Field label="Email"><Input type="email" value={draft.email} onChange={(event) => update("email", event.target.value)} placeholder="alex@example.com" /></Field><Field label="Phone"><Input value={draft.phone} onChange={(event) => update("phone", event.target.value)} placeholder="+91 98765 43210" /></Field><Field label="Location"><Input value={draft.location} onChange={(event) => update("location", event.target.value)} placeholder="Bengaluru, India" /></Field><Field label="Portfolio or LinkedIn"><Input value={draft.website} onChange={(event) => update("website", event.target.value)} placeholder="linkedin.com/in/alexmorgan" /></Field></div></section>
-            <section><h3 className="text-sm font-semibold text-ink">Professional profile</h3><div className="mt-3"><Field label="Summary"><textarea value={draft.summary} onChange={(event) => update("summary", event.target.value)} placeholder="Write a 2–4 sentence summary of your strengths and impact…" rows={4} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field></div></section>
-            <section><h3 className="text-sm font-semibold text-ink">Experience and education</h3><div className="mt-3 grid gap-4 sm:grid-cols-2"><Field label="Work experience"><textarea value={draft.experience} onChange={(event) => update("experience", event.target.value)} placeholder={"Role · Company · Dates\nAdd achievements and measurable impact…"} rows={6} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field><Field label="Education"><textarea value={draft.education} onChange={(event) => update("education", event.target.value)} placeholder="Degree · Institution · Dates" rows={6} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field></div></section>
-            <section><h3 className="text-sm font-semibold text-ink">Skills and projects</h3><div className="mt-3 grid gap-4 sm:grid-cols-2"><Field label="Skills"><textarea value={draft.skills} onChange={(event) => update("skills", event.target.value)} placeholder="Growth strategy, SQL, HubSpot, Research…" rows={4} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field><Field label="Projects or achievements"><textarea value={draft.projects} onChange={(event) => update("projects", event.target.value)} placeholder="Project name · What you built · Result" rows={4} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field></div></section>
+            {(!createRoute || resumeStep === 2) ? <section><h3 className="text-sm font-semibold text-ink">Contact details</h3><div className="mt-3 grid gap-4 sm:grid-cols-2"><Field label="Full name"><Input value={draft.name} onChange={(event) => update("name", event.target.value)} placeholder="Alex Morgan" /></Field><Field label="Headline"><Input value={draft.headline} onChange={(event) => update("headline", event.target.value)} placeholder="Growth marketer · B2B SaaS" /></Field><Field label="Email"><Input type="email" value={draft.email} onChange={(event) => update("email", event.target.value)} placeholder="alex@example.com" /></Field><Field label="Phone"><Input value={draft.phone} onChange={(event) => update("phone", event.target.value)} placeholder="+91 98765 43210" /></Field><Field label="Location"><Input value={draft.location} onChange={(event) => update("location", event.target.value)} placeholder="Bengaluru, India" /></Field><Field label="Portfolio or LinkedIn"><Input value={draft.website} onChange={(event) => update("website", event.target.value)} placeholder="linkedin.com/in/alexmorgan" /></Field></div></section> : null}
+            {(!createRoute || resumeStep === 2) ? <section><h3 className="text-sm font-semibold text-ink">Professional profile</h3><div className="mt-3"><Field label="Summary"><textarea value={draft.summary} onChange={(event) => update("summary", event.target.value)} placeholder="Write a 2–4 sentence summary of your strengths and impact…" rows={4} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field></div></section> : null}
+            {(!createRoute || resumeStep === 3) ? <section><h3 className="text-sm font-semibold text-ink">Experience and education</h3><div className="mt-3 grid gap-4 sm:grid-cols-2"><Field label="Work experience"><textarea value={draft.experience} onChange={(event) => update("experience", event.target.value)} placeholder={"Role · Company · Dates\nAdd achievements and measurable impact…"} rows={6} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field><Field label="Education"><textarea value={draft.education} onChange={(event) => update("education", event.target.value)} placeholder="Degree · Institution · Dates" rows={6} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field></div></section> : null}
+            {(!createRoute || resumeStep === 4) ? <section><h3 className="text-sm font-semibold text-ink">Skills and projects</h3><div className="mt-3 grid gap-4 sm:grid-cols-2"><Field label="Skills"><textarea value={draft.skills} onChange={(event) => update("skills", event.target.value)} placeholder="Growth strategy, SQL, HubSpot, Research…" rows={4} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field><Field label="Projects or achievements"><textarea value={draft.projects} onChange={(event) => update("projects", event.target.value)} placeholder="Project name · What you built · Result" rows={4} className="w-full resize-y rounded-xl border border-border bg-white px-3.5 py-3 text-sm text-ink placeholder:text-subtle focus:border-primary/50 focus:outline-none" /></Field></div></section> : null}
           </div>
-          <div className="mt-6 flex flex-col-reverse justify-end gap-3 border-t border-border pt-5 sm:flex-row"><Button variant="secondary" onClick={saveDraft}>Save draft</Button><Button disabled={creating} onClick={createResume}><FileText className="size-4" />{creating ? "Creating…" : "Create resume"}</Button></div>
+          <div className="mt-6 flex flex-col-reverse justify-end gap-3 border-t border-border pt-5 sm:flex-row sm:items-center">{creationMessage ? <p role="alert" className="mr-auto text-sm text-amber-800">{creationMessage}</p> : null}<Button variant="secondary" onClick={saveDraft}>Save draft</Button>{(!createRoute || resumeStep === 4) ? <Button disabled={creating || !draft.name.trim()} onClick={createResume}><FileText className="size-4" />{creating ? "Creating…" : "Create resume"}</Button> : <Button onClick={() => setResumeStep((step) => Math.min(4, step + 1))}>Continue</Button>}</div>
         </Card>
       </div>
 

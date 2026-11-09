@@ -10,6 +10,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100dvh;
+  overflow-x: hidden;
   color: #242420;
   background: #f4f2ee;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -56,8 +57,22 @@ html.dark ::-webkit-scrollbar-thumb { background: #465346; background-clip: padd
 }
 .ai-orb { animation: ai-float 3s ease-in-out infinite; }
 .ai-message { animation: ai-message-in .35s ease-out both; }
+.horizontal-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.horizontal-scroll::-webkit-scrollbar { display: none; }
+.jobs-toolbar > div > div:nth-child(2) { scrollbar-width: none; }
+.jobs-toolbar > div > div:nth-child(2)::-webkit-scrollbar { display: none; }
+@media (max-width: 1023px) {
+  .jobs-toolbar > div > div:nth-child(2) { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .jobs-toolbar > div > div:nth-child(2) > * { flex-shrink: 0; }
+}
+.dialog-backdrop { animation: dialog-fade-in .18s ease-out both; }
+.dialog-panel { animation: dialog-panel-in .22s cubic-bezier(.22,1,.36,1) both; }
+.animate-fade-up { animation: resume-fade-up .42s cubic-bezier(.22,1,.36,1) both; }
+@keyframes dialog-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialog-panel-in { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes resume-fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) {
-  .ai-orb, .ai-message { animation: none; }
+  .ai-orb, .ai-message, .dialog-backdrop, .dialog-panel, .animate-fade-up { animation: none; }
 }
 
 @layer components {
@@ -76,4 +91,8 @@ html.dark ::-webkit-scrollbar-thumb { background: #465346; background-clip: padd
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+@media (max-width: 639px) {
+  input, select, textarea { font-size: 16px !important; }
 }
