@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
@@ -11,6 +11,7 @@ import { BrandLoader } from "@/components/ui/brand-loader";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const main = useRef<HTMLElement>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -19,6 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setMobileNavOpen(false);
+    if (!window.location.hash) main.current?.scrollTo(0, 0);
   }, [pathname]);
 
   useEffect(() => {
@@ -58,11 +60,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return <SessionContext.Provider value={user}><ToastProvider>
-    <div className="min-h-screen overflow-x-hidden lg:flex">
+    <div className="flex h-dvh overflow-hidden">
       <Sidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
-      <div className="min-w-0 flex-1 overflow-x-hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onMenuClick={() => setMobileNavOpen(true)} />
-        <main className="mx-auto min-h-[calc(100vh-4rem)] max-w-[1600px] px-3 py-4 sm:p-4 md:p-6 lg:p-7">{children}</main>
+        <main ref={main} data-workspace-scroll className={`min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain ${mobileNavOpen ? "max-lg:overflow-y-hidden" : ""}`}>
+          <div className={`mx-auto min-h-full max-w-[1600px] ${pathname === "/jobs" ? "flex flex-col lg:h-full" : "px-3 py-4 sm:p-4 md:p-6 lg:p-7"}`}>{children}</div>
+        </main>
       </div>
     </div>
   </ToastProvider></SessionContext.Provider>;

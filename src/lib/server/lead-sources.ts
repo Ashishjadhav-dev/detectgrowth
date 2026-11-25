@@ -3,14 +3,22 @@ import type { LeadsResponse, LocalLead } from "@/types/leads";
 
 type Tags = Record<string, string>;
 type OsmElement = { type: "node" | "way" | "relation"; id: number; tags?: Tags; lat?: number; lon?: number; center?: { lat: number; lon: number } };
-type PhotonResult = { features?: Array<{ geometry?: { coordinates?: number[] }; properties?: Tags }> };
-type GooglePlace = { id?: string; displayName?: { text?: string }; primaryTypeDisplayName?: { text?: string }; formattedAddress?: string; nationalPhoneNumber?: string; websiteUri?: string; googleMapsUri?: string; rating?: number; userRatingCount?: number };
+type PhotonResult = { features?: Array<{ geometry?: { coordinates?: number[] }; properties?: Tags & { extent?: number[] } }> };
+type GooglePlace = { id?: string; displayName?: { text?: string }; primaryTypeDisplayName?: { text?: string }; formattedAddress?: string; nationalPhoneNumber?: string; websiteUri?: string; googleMapsUri?: string; rating?: number; userRatingCount?: number; businessStatus?: string };
+type Locality = { lat: number; lon: number; extent?: number[]; resolved: string };
 
 const photonSearchTerms: Record<LeadCategory, string> = {
   "Dental clinics": "dental", "Clinics": "clinic", "Restaurants": "restaurant", "Cafés": "cafe",
   "Salons & barbers": "salon", "Gyms & fitness": "fitness", "Hotels": "hotel",
   "Real estate agencies": "real estate", "Auto repair": "auto", "Veterinarians": "vet",
   "Bakeries": "bakery", "Pharmacies": "pharmacy",
+};
+
+const googlePlaceTypes: Record<LeadCategory, string[]> = {
+  "Dental clinics": ["dentist"], "Clinics": ["doctor"], "Restaurants": ["restaurant"], "Cafés": ["cafe"],
+  "Salons & barbers": ["hair_salon"], "Gyms & fitness": ["gym"], "Hotels": ["hotel"],
+  "Real estate agencies": ["real_estate_agency"], "Auto repair": ["car_repair"], "Veterinarians": ["veterinary_care"],
+  "Bakeries": ["bakery"], "Pharmacies": ["pharmacy"],
 };
 
 const headers = { "User-Agent": "DetectGrowth/1.0 (local business search)", Accept: "application/json" };
@@ -84,7 +92,21 @@ async function photonBusinesses(photon: URL, lat: number, lon: number, radius: n
   });
 }
 
-async function openStreetMapLeads(locality: string, category: LeadCategory, radius: number) {
+function searchRadiusForPlace(lat: number, lon: number, extent: number[] | undefined, minimumRadius: number) {
+  if (!extent || extent.length !== 4 || !extent.every(Number.isFinite)) return minimumRadius;
+  const [west, north, east, south] = extent;
+  if (west < -180 || east > 180 || south < -90 || north > 90 || west > east || south > north) return minimumRadius;
+  const longitudeScale = Math.cos(lat * Math.PI / 180);
+  const farthestPoint = Math.max(
+    Math.hypot((north - lat) * 111_000, (west - lon) * 111_000 * longitudeScale),
+    Math.hypot((north - lat) * 111_000, (east - lon) * 111_000 * longitudeScale),
+    Math.hypot((south - lat) * 111_000, (west - lon) * 111_000 * longitudeScale),
+    Math.hypot((south - lat) * 111_000, (east - lon) * 111_000 * longitudeScale),
+  );
+  return Math.max(minimumRadius, Math.min(30_000, Math.ceil((farthestPoint * 1.15) / 1_000) * 1_000));
+}
+
+async function resolveLocality(locality: string): Promise<Locality | null> {
   const photon = new URL(process.env.LEADS_PHOTON_URL || "https://photon.komoot.io/api/");
   photon.searchParams.set("q", locality);
   photon.searchParams.set("limit", "5");
@@ -94,12 +116,19 @@ async function openStreetMapLeads(locality: string, category: LeadCategory, radi
     const [lon, lat] = item.geometry?.coordinates ?? [];
     return Number.isFinite(lat) && Math.abs(lat) <= 90 && Number.isFinite(lon) && Math.abs(lon) <= 180;
   });
-  if (!place) return result("OpenStreetMap", [], null);
-
+  if (!place) return null;
   const [lon, lat] = place.geometry!.coordinates!;
   const { name, city, state, country } = place.properties ?? {};
-  const resolved = [...new Set([name, city, state, country].filter(Boolean))].join(", ") || locality;
-  const filters = leadCategories[category].map((selector) => `nwr(around:${radius},${lat},${lon})${selector}["name"];`).join("");
+  return { lat, lon, extent: place.properties?.extent, resolved: [...new Set([name, city, state, country].filter(Boolean))].join(", ") || locality };
+}
+
+async function openStreetMapLeads(locality: string, category: LeadCategory, radius: number) {
+  const place = await resolveLocality(locality);
+  if (!place) return result("OpenStreetMap", [], null);
+  const { lat, lon, resolved } = place;
+  const searchRadius = searchRadiusForPlace(lat, lon, place.extent, radius);
+  const photon = new URL(process.env.LEADS_PHOTON_URL || "https://photon.komoot.io/api/");
+  const filters = leadCategories[category].map((selector) => `nwr(around:${searchRadius},${lat},${lon})${selector}["name"];`).join("");
   const query = `[out:json][timeout:8][maxsize:16777216];(${filters});out center 160;`;
   const endpoint = process.env.LEADS_OVERPASS_URL || "https://overpass-api.de/api/interpreter";
   let elements: OsmElement[];
@@ -112,7 +141,7 @@ async function openStreetMapLeads(locality: string, category: LeadCategory, radi
     if (!Array.isArray(data.elements) || data.remark) throw new Error("Incomplete directory response");
     elements = data.elements;
   } catch {
-    elements = await photonBusinesses(photon, lat, lon, radius, category);
+    elements = await photonBusinesses(photon, lat, lon, searchRadius, category);
     limitedCoverage = true;
   }
   const prospects = elements.flatMap((item) => {
@@ -157,35 +186,89 @@ async function openStreetMapLeads(locality: string, category: LeadCategory, radi
   return { ...result("OpenStreetMap", deduped.slice(0, 80), resolved), limitedCoverage };
 }
 
-async function googleLeads(locality: string, category: LeadCategory) {
-  const key = process.env.GOOGLE_MAPS_API_KEY?.trim();
-  if (!key) throw new LeadProviderError("Google Places needs a server API key.");
+function googleLead(place: GooglePlace, category: LeadCategory, locality: string): LocalLead | null {
+  if (!place.id || !place.displayName?.text || place.businessStatus === "CLOSED_PERMANENTLY" || place.businessStatus === "CLOSED_TEMPORARILY") return null;
+  return {
+    id: `google-${place.id}`,
+    name: place.displayName.text,
+    category: place.primaryTypeDisplayName?.text ?? category,
+    address: place.formattedAddress ?? "",
+    locality,
+    phone: place.nationalPhoneNumber ?? "",
+    email: "",
+    website: safeWebUrl(place.websiteUri),
+    mapsUrl: safeWebUrl(place.googleMapsUri),
+    rating: place.rating ?? null,
+    reviewCount: place.userRatingCount ?? 0,
+    source: "Google Places",
+  };
+}
+
+function googleSearchGrid(place: Locality, minimumRadius: number) {
+  const coverageRadius = searchRadiusForPlace(place.lat, place.lon, place.extent, minimumRadius);
+  const cellsPerAxis = Math.min(3, Math.max(1, Math.ceil((coverageRadius * 2) / 8_000)));
+  const latitudeSpan = coverageRadius / 111_000;
+  const longitudeScale = Math.max(0.01, Math.cos(place.lat * Math.PI / 180));
+  const longitudeSpan = latitudeSpan / longitudeScale;
+  const cellRadius = Math.min(50_000, Math.ceil((Math.hypot(latitudeSpan / cellsPerAxis, longitudeSpan * longitudeScale / cellsPerAxis) * 111_000 * 1.15) / 100) * 100);
+  return Array.from({ length: cellsPerAxis ** 2 }, (_, index) => {
+    const row = Math.floor(index / cellsPerAxis);
+    const column = index % cellsPerAxis;
+    return {
+      latitude: place.lat - latitudeSpan + latitudeSpan * (2 * row + 1) / cellsPerAxis,
+      longitude: place.lon - longitudeSpan + longitudeSpan * (2 * column + 1) / cellsPerAxis,
+      radius: cellRadius,
+    };
+  });
+}
+
+async function googleTextLeads(key: string, locality: string, category: LeadCategory) {
   const payload = await providerJson<{ places?: GooglePlace[] }>("https://places.googleapis.com/v1/places:searchText", "Google Places", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": key,
-      "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.rating,places.userRatingCount,places.primaryTypeDisplayName",
+      "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.rating,places.userRatingCount,places.primaryTypeDisplayName,places.businessStatus",
     },
     body: JSON.stringify({ textQuery: `${category} in ${locality}`, pageSize: 20, languageCode: "en" }),
   });
-  return result("Google Places", (payload.places ?? []).flatMap((place): LocalLead[] => {
-    if (!place.id || !place.displayName?.text) return [];
-    return [{
-      id: `google-${place.id}`,
-      name: place.displayName.text,
-      category: place.primaryTypeDisplayName?.text ?? category,
-      address: place.formattedAddress ?? "",
-      locality,
-      phone: place.nationalPhoneNumber ?? "",
-      email: "",
-      website: safeWebUrl(place.websiteUri),
-      mapsUrl: safeWebUrl(place.googleMapsUri),
-      rating: place.rating ?? null,
-      reviewCount: place.userRatingCount ?? 0,
-      source: "Google Places",
-    }];
-  }), locality);
+  return (payload.places ?? []).flatMap((entry) => {
+    const lead = googleLead(entry, category, locality);
+    return lead ? [lead] : [];
+  });
+}
+
+async function googleLeads(locality: string, category: LeadCategory, minimumRadius: number) {
+  const key = process.env.GOOGLE_MAPS_API_KEY?.trim();
+  if (!key) throw new LeadProviderError("Google Places needs a server API key.");
+  const place = await resolveLocality(locality).catch(() => null);
+  if (!place) return result("Google Places", await googleTextLeads(key, locality, category), locality);
+
+  const fieldMask = "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.rating,places.userRatingCount,places.primaryTypeDisplayName,places.businessStatus";
+  const responses = await Promise.allSettled(googleSearchGrid(place, minimumRadius).map((area) => providerJson<{ places?: GooglePlace[] }>("https://places.googleapis.com/v1/places:searchNearby", "Google Places", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key, "X-Goog-FieldMask": fieldMask },
+    body: JSON.stringify({
+      includedTypes: googlePlaceTypes[category],
+      maxResultCount: 20,
+      rankPreference: "DISTANCE",
+      languageCode: "en",
+      locationRestriction: { circle: { center: { latitude: area.latitude, longitude: area.longitude }, radius: area.radius } },
+    }),
+  })));
+  const places = new Map<string, GooglePlace>();
+  let fulfilledResponses = 0;
+  for (const response of responses) {
+    if (response.status !== "fulfilled") continue;
+    fulfilledResponses += 1;
+    for (const entry of response.value.places ?? []) if (entry.id) places.set(entry.id, entry);
+  }
+  if (!fulfilledResponses) throw new LeadProviderError("Google Places is temporarily unavailable. Please try again shortly.");
+  const leads = [...places.values()].flatMap((entry) => {
+    const lead = googleLead(entry, category, place.resolved);
+    return lead ? [lead] : [];
+  });
+  return result("Google Places", leads.slice(0, 160), place.resolved);
 }
 
 type CacheEntry = { expires: number; task: Promise<LeadsResponse>; pending: boolean };
@@ -194,7 +277,7 @@ const cache = shared.osmLeadCache ??= new Map();
 
 export function findLeads(locality: string, category: LeadCategory, radius: number, mode: "osm" | "google" | "demo", fresh = false) {
   if (mode === "demo") return Promise.resolve(demoLeads(locality, category));
-  if (mode === "google") return googleLeads(locality, category);
+  if (mode === "google") return googleLeads(locality, category, radius);
   const key = JSON.stringify([locality.toLocaleLowerCase("en"), category, radius]);
   const now = Date.now();
   const cached = cache.get(key);

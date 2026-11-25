@@ -50,7 +50,7 @@ function WorkspaceNav({ pathname, collapsed = false, onNavigate }: {
 }) {
   const career = isCareerPath(pathname);
   const links = [["Dashboard", "/dashboard", Gauge] as const, ...(career ? careerLinks : growthLinks)];
-  return <nav className="min-h-0 flex-1 overflow-y-auto pr-1" aria-label={career ? "Career navigation" : "Growth navigation"}>
+  return <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1" aria-label={career ? "Career navigation" : "Growth navigation"}>
     <div aria-label="Product areas" role="group" className={cn("mb-4 grid gap-1 rounded-xl border border-border bg-elevated p-1", !collapsed && "grid-cols-2")}>
       {([["Growth", "/leads", Radar, !career], ["Career", "/jobs", BriefcaseBusiness, career]] as const).map(([label, href, Icon, active]) =>
         <Link key={href} href={href} onClick={onNavigate} aria-label={`Open ${label.toLowerCase()} workspace`} title={label}
@@ -88,8 +88,6 @@ export function Sidebar({
   useEffect(() => {
     if (!mobileOpen) return;
     const previous = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const controls = () => Array.from(drawer.current?.querySelectorAll<HTMLElement>("a, button") ?? []);
     controls()[0]?.focus();
     const key = (event: KeyboardEvent) => {
@@ -97,7 +95,7 @@ export function Sidebar({
       if (event.key === "Tab") { const items = controls(); const first = items[0]; const last = items[items.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
     };
     document.addEventListener("keydown", key);
-    return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", key); previous?.focus(); };
+    return () => { document.removeEventListener("keydown", key); previous?.focus(); };
   }, [mobileOpen]);
   const [collapsed, setCollapsed] = useState(false);
   const [signOutError, setSignOutError] = useState("");
@@ -116,7 +114,7 @@ export function Sidebar({
   return (
     <>
       {signOutError ? <div role="alert" className="fixed bottom-4 right-4 z-[100] rounded-xl bg-white p-4 text-red-700 shadow-lg">{signOutError}</div> : null}
-      <aside className={cn("sticky top-0 hidden h-screen shrink-0 flex-col overflow-visible border-r border-border bg-white py-4 text-ink transition-[width,padding] duration-300 ease-out lg:flex", collapsed ? "w-[76px] px-2" : "w-[264px] px-3")}>
+      <aside className={cn("hidden shrink-0 flex-col border-r border-border bg-white py-4 text-ink transition-[width,padding] duration-300 ease-out lg:flex", collapsed ? "w-[76px] px-2" : "w-[264px] px-3")}>
         <div className="relative mb-5">
         <Link href="/dashboard" className={cn("flex items-center gap-3 rounded-2xl py-2 transition-[padding] duration-300", collapsed ? "justify-center px-1" : "px-3")} aria-label="DetectGrowth home">
           <span className={cn("block shrink-0 overflow-hidden", collapsed ? "h-10 w-10" : "w-[185px]")}>

@@ -75,7 +75,7 @@ the local lead and career workspaces.
 
 ### DetectGrowth lead discovery
 
-Choose a city or neighborhood, a category, and a radius. Photon resolves the
+Choose a city or neighborhood and a category. Photon resolves the
 location and Overpass returns nearby OpenStreetMap businesses with any published
 phone, email, and website fields. If Overpass is unavailable, Photon can return
 a smaller set from the map name index. The UI marks those results as limited
@@ -91,8 +91,10 @@ details.
 `LEADS_PHOTON_URL` and `LEADS_OVERPASS_URL` can point to hosted or self-hosted
 equivalents. Small interactive searches use shared public instances by default.
 The regular search shows provider errors when live data is unavailable and offers
-a separate example preview. The legacy `LEADS_DATA_MODE=google` option requires
-`GOOGLE_MAPS_API_KEY` and provides a display-only view of Google Places results.
+a separate example preview. Set `LEADS_DATA_MODE=live` with
+`GOOGLE_MAPS_API_KEY` to search Google Places across a grid derived from the
+resolved city boundary. Duplicate Google Place IDs are merged before the
+results are shown. Google Places results remain display-only.
 
 ### AI personalization
 

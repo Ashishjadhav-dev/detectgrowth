@@ -15,7 +15,8 @@ import { leadStatuses, type LocalLead, type SavedLead, type WebsiteAudit } from 
 import { LeadDetail } from "./lead-detail";
 import { LeadResult } from "./lead-result";
 
-const example = { locality: "Indiranagar, Bengaluru", category: "Dental clinics", radius: "3000" };
+const example = { locality: "Indiranagar, Bengaluru", category: "Dental clinics" };
+const defaultRadius = "6000";
 const demoStorage = "detectgrowth-demo-shortlist-v1";
 const field = "min-h-11 w-full rounded-xl border border-border bg-white px-3 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
 const emptyLeads: SavedLead[] = [];
@@ -43,7 +44,7 @@ export function LeadsView({ initialSearch }: { initialSearch?: LeadSearch }) {
   const client = useQueryClient();
   const [mobile, setMobile] = useState(false);
   const [form, setForm] = useState(() => initialSearch ? {
-    locality: initialSearch.locality, category: initialSearch.category, radius: initialSearch.radius,
+    locality: initialSearch.locality, category: initialSearch.category,
   } : example);
   const [submitted, setSubmitted] = useState<LeadSearch | null>(initialSearch ?? null);
   const [tab, setTab] = useState<"discover" | "saved">("discover");
@@ -121,7 +122,7 @@ export function LeadsView({ initialSearch }: { initialSearch?: LeadSearch }) {
   const selected = visible.find(({ lead }) => lead.id === selectedId)?.lead ?? (mobile ? undefined : visible[0]?.lead);
 
   function submit(mode?: "demo") {
-    const next = { ...form, locality: form.locality.trim(), ...(mode ? { mode } : {}) };
+    const next = { ...form, locality: form.locality.trim(), radius: defaultRadius, ...(mode ? { mode } : {}) };
     if (next.locality.length < 2) return;
     setSelectedId("");
     setTab("discover");
@@ -219,7 +220,7 @@ export function LeadsView({ initialSearch }: { initialSearch?: LeadSearch }) {
       <p className="mt-3 max-w-xl text-base leading-relaxed text-[#e0ebdf]">Scan a market for website gaps, review the evidence, and capture leads worth following up.</p>
     </section>
 
-    <form onSubmit={(event) => { event.preventDefault(); submit(); }} className="grid gap-4 rounded-2xl border border-border bg-white p-4 shadow-soft sm:grid-cols-2 sm:p-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(105px,.55fr)_auto] xl:items-end">
+    <form onSubmit={(event) => { event.preventDefault(); submit(); }} className="grid gap-4 rounded-2xl border border-border bg-white p-4 shadow-soft sm:grid-cols-2 sm:p-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_auto] xl:items-end">
       <label className="grid min-w-0 gap-1.5 text-sm font-medium text-ink">City or neighborhood
         <span className="relative"><MapPin className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted" aria-hidden="true" />
           <input required minLength={2} maxLength={120} className={`${field} pl-9`} value={form.locality} onChange={(event) => setForm({ ...form, locality: event.target.value })} />
@@ -228,11 +229,6 @@ export function LeadsView({ initialSearch }: { initialSearch?: LeadSearch }) {
       <label className="grid min-w-0 gap-1.5 text-sm font-medium text-ink">Business type
         <select className={field} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}>
           {Object.keys(leadCategories).map((category) => <option key={category}>{category}</option>)}
-        </select>
-      </label>
-      <label className="grid min-w-0 gap-1.5 text-sm font-medium text-ink">Search radius
-        <select className={field} value={form.radius} onChange={(event) => setForm({ ...form, radius: event.target.value })}>
-          <option value="1500">1.5 km</option><option value="3000">3 km</option><option value="6000">6 km</option>
         </select>
       </label>
       <Button size="lg" className="self-end" disabled={search.isFetching || watch.isPending || form.locality.trim().length < 2}><Search className="size-4" aria-hidden="true" />{search.isFetching ? "Searching…" : "Find leads"}</Button>
@@ -250,7 +246,7 @@ export function LeadsView({ initialSearch }: { initialSearch?: LeadSearch }) {
       {(tab === "saved" || submitted) && !error && <div className="my-4 flex flex-wrap items-center justify-between gap-3">
         <div aria-live="polite">
           <h2 className="text-lg font-semibold text-ink">{tab === "saved" ? "Saved leads" : pending && !search.data ? "Looking up businesses" : `${results.length} ${results.length === 1 ? "business" : "businesses"} found`}</h2>
-          {tab === "discover" && search.data?.resolvedLocality && <p className="text-sm text-muted">{search.data.resolvedLocality}{source === "OpenStreetMap" ? ` · ${Number(submitted?.radius) / 1000} km radius` : ""}</p>}
+          {tab === "discover" && search.data?.resolvedLocality && <p className="text-sm text-muted">{search.data.resolvedLocality}</p>}
           {results.length > 0 && <p className="text-sm text-muted">{signalCount} with a growth signal · {contactCount} with direct contact{visible.length !== results.length ? ` · ${visible.length} shown` : ""}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -282,7 +278,7 @@ export function LeadsView({ initialSearch }: { initialSearch?: LeadSearch }) {
       </div> : !visible.length ? <div className="mt-4 rounded-2xl border border-dashed border-border bg-white p-8 text-center sm:p-12">
         <Globe2 className="mx-auto size-7 text-primary" aria-hidden="true" />
         <h2 className="mt-3 text-lg font-semibold text-ink">{results.length ? "No leads match these filters" : tab === "saved" ? "Your shortlist is empty" : !submitted ? "Choose a market to start" : !search.data?.resolvedLocality ? "Location not found" : "No matching businesses found"}</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted">{results.length ? "Clear your filters to see more leads." : tab === "saved" ? "Save a business from Discover to track its stage and notes." : !submitted ? "Use the city, business type, and radius above to find prospects." : !search.data?.resolvedLocality ? "Try the city name with its state or country." : "Try a wider radius or a neighboring city."}</p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted">{results.length ? "Clear your filters to see more leads." : tab === "saved" ? "Save a business from Discover to track its stage and notes." : !submitted ? "Choose a city and business type to find prospects." : !search.data?.resolvedLocality ? "Try the city name with its state or country." : "Try a nearby city or a different business type."}</p>
         {results.length > 0 && <Button type="button" variant="secondary" className="mt-4" onClick={() => { setContactOnly(false); setStageFilter(""); setSignalFilter(""); }}>Clear filters</Button>}
         {tab === "discover" && !submitted && <Button type="button" variant="secondary" className="mt-4" onClick={() => submit("demo")}>View example results</Button>}
       </div> : <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(265px,.9fr)_minmax(0,1.6fr)]">

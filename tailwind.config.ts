@@ -5,7 +5,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        canvas: "#f4f2ee",
+        canvas: "var(--page-canvas)",
+        loading: { track: "var(--loading-track)", accent: "var(--loading-accent)" },
         surface: "#ffffff",
         elevated: "#f8f7f4",
         border: "#dedbd4",
