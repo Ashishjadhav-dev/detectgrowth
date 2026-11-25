@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           setAuthReady(true);
           return;
         }
-        if (!user && !pathname.startsWith("/auth")) { window.location.replace("/auth"); return; }
+        if (!user && !pathname.startsWith("/auth")) { setAuthReady(false); window.location.replace("/auth"); return; }
         if (user && pathname.startsWith("/auth")) { window.location.replace("/dashboard"); return; }
         setUser(user);
         setSessionError(false);
