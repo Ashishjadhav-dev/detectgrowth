@@ -9,11 +9,13 @@ import { useSession } from "@/components/auth/session-provider";
 import { clearDemoSession } from "@/lib/auth";
 import { apiRequest } from "@/lib/api/client";
 import { listSignals, type ApiSignal } from "@/lib/api/signals";
+import { isCareerPath } from "./workspace-mode";
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const user = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const career = isCareerPath(pathname);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [panel, setPanel] = useState<"notifications" | "profile" | null>(null);
@@ -27,26 +29,26 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
     listSignals().then(setSignals).catch(() => {});
     apiRequest<{ readSignals?: string[] }>("/api/v1/settings/preferences").then((data) => setReadIds(data.readSignals ?? [])).catch(() => {});
   }, [pathname]);
-  useEffect(() => { setPanel(null); }, [pathname]);
+  useEffect(() => { setPanel(null); setSearchOpen(false); }, [pathname]);
   useEffect(() => {
     const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setPanel(null); };
     const key = (event: KeyboardEvent) => {
       if (event.key === "Escape") { setPanel(null); setSearchOpen(false); }
-      if ((event.metaKey || event.ctrlKey) && event.key === "k") { event.preventDefault(); setSearchOpen(true); requestAnimationFrame(() => search.current?.focus()); }
+      if (career && (event.metaKey || event.ctrlKey) && event.key === "k") { event.preventDefault(); setSearchOpen(true); requestAnimationFrame(() => search.current?.focus()); }
     };
     document.addEventListener("pointerdown", outside); document.addEventListener("keydown", key);
     return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", key); };
-  }, []);
+  }, [career]);
 
   const unread = signals.filter((signal) => !readIds.includes(signal.id));
-  const titleMap: Record<string, string> = { dashboard: "Growth Overview", applications: "Application Tracker", resume: "Resume Tools", "interview-prep": "Interview Prep", networking: "Networking & Portals" };
+  const titleMap: Record<string, string> = { dashboard: "Workspace overview", leads: "Lead discovery", watchlists: "Growth Watchlists", discover: "Companies", jobs: "Jobs", opportunities: "Growth opportunities", applications: "Application Tracker", resume: "Resume Tools", "interview-prep": "Interview Prep", networking: "Networking & Portals" };
   const title = titleMap[pathname.split("/")[1] ?? ""] ?? pathname.split("/")[1]?.replaceAll("-", " ") ?? "Workspace";
 
   return <header className="sticky top-0 z-30 border-b border-border bg-white/95 backdrop-blur"><div className="relative flex min-h-14 items-center gap-1.5 px-3 sm:gap-3 sm:px-6">
     <Button variant="ghost" className="h-10 w-10 shrink-0 p-0 lg:hidden" aria-label="Open navigation" onClick={onMenuClick}><Menu className="size-5" /></Button>
     <div className="min-w-0 flex-1 sm:min-w-[190px] sm:shrink-0"><p className="truncate text-sm font-semibold text-ink">{title}</p><p className="truncate text-[10px] text-muted sm:text-[11px]">{user?.workspace ?? "Demo Workspace"}</p></div>
-    <form className={`${searchOpen ? "flex" : "hidden md:flex"} absolute left-0 right-0 top-full z-40 items-center border-b border-border bg-white p-3 shadow-md md:static md:min-w-0 md:flex-1 md:border-0 md:bg-transparent md:p-0 md:shadow-none`} onSubmit={(event) => { event.preventDefault(); if (query.trim()) { router.push(`/jobs?query=${encodeURIComponent(query.trim())}`); setSearchOpen(false); } }}><div className="relative w-full"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" /><input ref={search} aria-label="Global search" placeholder="Search jobs, companies, or tasks…" value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-border bg-white pl-9 pr-3 text-sm text-ink outline-none transition placeholder:text-subtle focus:border-primary/40 focus:ring-2 focus:ring-primary/10 md:h-9" /></div></form>
-    <Button variant="ghost" className="h-10 w-10 shrink-0 p-0 md:hidden" aria-label="Open search" aria-expanded={searchOpen} onClick={() => { setSearchOpen((value) => !value); requestAnimationFrame(() => search.current?.focus()); }}><Search className="size-5" /></Button>
+    {career && <><form className={`${searchOpen ? "flex" : "hidden md:flex"} absolute left-0 right-0 top-full z-40 items-center border-b border-border bg-white p-3 shadow-md md:static md:min-w-0 md:flex-1 md:border-0 md:bg-transparent md:p-0 md:shadow-none`} onSubmit={(event) => { event.preventDefault(); if (query.trim()) { router.push(`/jobs?query=${encodeURIComponent(query.trim())}`); setSearchOpen(false); } }}><div className="relative w-full"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" /><input ref={search} aria-label="Search jobs from the workspace" placeholder="Search jobs…" value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full rounded-xl border border-border bg-white pl-9 pr-3 text-sm text-ink outline-none transition placeholder:text-subtle focus:border-primary/40 focus:ring-2 focus:ring-primary/10 md:h-9" /></div></form>
+    <Button variant="ghost" className="h-10 w-10 shrink-0 p-0 md:hidden" aria-label="Open search" aria-expanded={searchOpen} onClick={() => { setSearchOpen((value) => !value); requestAnimationFrame(() => search.current?.focus()); }}><Search className="size-5" /></Button></>}
     <ThemeToggle />
     {pathname === "/dashboard" ? <Button variant="ghost" className="hidden h-10 w-10 shrink-0 p-0 sm:grid" aria-label="Refresh dashboard" onClick={() => window.dispatchEvent(new Event("dashboard-refresh"))}><RefreshCw className="size-4" /></Button> : null}
     <div ref={root} className="relative flex shrink-0 items-center gap-1.5">

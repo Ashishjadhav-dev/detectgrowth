@@ -21,6 +21,22 @@ best-effort failure isolation. Live ingestion should eventually move to a
 background worker and database rather than fetching third-party feeds during a
 user request.
 
+## Lead discovery APIs
+
+| Service | Endpoint | Purpose | Authentication |
+| --- | --- | --- | --- |
+| Photon | `https://photon.komoot.io/api/` | Geocodes locations and provides a limited points-of-interest fallback | None |
+| Overpass | `https://overpass-api.de/api/interpreter` | Queries nearby OpenStreetMap businesses and published contact fields | None |
+| Google Places | `https://places.googleapis.com/v1/places:searchText` | Optional display-only directory search | `GOOGLE_MAPS_API_KEY` |
+
+The browser shows source links and OpenStreetMap attribution. Discovery never swaps
+a failed live search for sample records. Website checks make one bounded public
+homepage request with validated redirects and report HTTP status, HTTPS, and
+metadata observed during that check. See the [Photon project](https://github.com/komoot/photon),
+[Overpass shared-server guidance](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html),
+[OpenStreetMap attribution](https://www.openstreetmap.org/copyright), and
+[Google Places policies](https://developers.google.com/maps/documentation/places/web-service/policies).
+
 ## Resume and language services
 
 | Service | Endpoint | Used by | Purpose | Authentication |
@@ -63,6 +79,7 @@ users to LinkedIn Jobs or ingest the same employers' authorized ATS feeds
 These are application-owned endpoints, not open APIs:
 
 - `/api/jobs`
+- `/api/leads`, `/api/leads/audit`, and `/api/leads/saved`
 - `/api/auth/[action]`
 - `/api/v1/[...segments]`
 - `/api/ai/personalize`

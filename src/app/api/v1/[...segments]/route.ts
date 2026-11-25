@@ -1,23 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasSameOrigin } from "@/lib/server/request-origin";
 import { tokenHash, transact } from "@/lib/server/accounts";
-import { demoCompanies, demoDashboard, demoIntegrations, demoLists, demoOpportunities, demoPeople, demoResearch, demoSignals } from "@/data/demo";
+import { initialWorkspace } from "@/lib/server/workspace";
 
 export const runtime = "nodejs";
 type Row = Record<string, unknown>;
+const collections = new Set(["companies", "people", "signals", "opportunities", "lists", "integrations", "applications", "jobAlerts", "bookmarks"]);
 const guestUser = { id: "guest-demo", name: "Demo User", email: "demo@detectgrowth.com", workspace: "Demo Workspace", isDemo: true };
 async function handle(request: NextRequest, context: { params: Promise<{ segments: string[] }> }) {
   const token = request.cookies.get("detectgrowth_session")?.value;
-  const isGuest = request.cookies.get("detectgrowth_guest")?.value === "1";
+  const isGuest = !token && request.cookies.get("detectgrowth_guest")?.value === "1";
   if (!token && !isGuest) return NextResponse.json({ error: { message: "Please sign in." } }, { status: 401 });
-  if (request.method !== "GET" && request.headers.get("origin") !== request.nextUrl.origin) return NextResponse.json({ error: { message: "Invalid origin." } }, { status: 403 });
+  if (request.method !== "GET" && !hasSameOrigin(request)) return NextResponse.json({ error: { message: "Invalid origin." } }, { status: 403 });
   const { segments } = await context.params;
   const method = request.method;
-  const input = method === "POST" || method === "PATCH" ? await request.json() : {};
+  let input: Row = {};
+  if (method === "POST" || method === "PATCH") {
+    try {
+      input = await request.json();
+      if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error();
+    } catch {
+      return NextResponse.json({ error: { message: "Enter a valid record." } }, { status: 400 });
+    }
+  }
   return transact((db) => {
     const user = isGuest ? guestUser : db.sessions[tokenHash(token!)]?.user;
     if (!user) return NextResponse.json({ error: { message: "Your session has expired." } }, { status: 401 });
     db.workspaces ??= {};
-    const workspace = db.workspaces[user.id] ??= structuredClone({ companies: demoCompanies, people: demoPeople, signals: demoSignals, opportunities: demoOpportunities, lists: demoLists, integrations: demoIntegrations, applications: [], jobAlerts: [], dashboard: demoDashboard, icp: { industries: "SaaS, E-commerce", locations: "India", employeeSize: "51-200", revenue: "", signals: {} } });
+    const workspace = db.workspaces[user.id] ??= initialWorkspace();
     workspace.applications ??= [];
     workspace.jobAlerts ??= [];
     const ok = (data: unknown) => NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } });
@@ -96,13 +106,15 @@ async function handle(request: NextRequest, context: { params: Promise<{ segment
       }
       return dashboard[segments[1]] === undefined ? fail("Not found.", 404) : ok(dashboard[segments[1]]);
     }
+    if (!collections.has(segments[0]) || segments.length > 2) return fail("Not found.", 404);
     const collection = workspace[segments[0]];
     if (!Array.isArray(collection)) return fail("Not found.", 404);
     const rows = collection as Row[];
     if (method === "PATCH" || method === "POST") {
-      for (const field of ["score", "confidence"]) if (input[field] !== undefined && (!Number.isFinite(input[field]) || input[field] < 0 || input[field] > 100)) return fail(`${field} must be between 0 and 100.`);
-      if (input.expectedValue !== undefined && (!Number.isFinite(input.expectedValue) || input.expectedValue < 0)) return fail("Expected value must be a positive number or zero.");
+      for (const field of ["score", "confidence"]) if (input[field] !== undefined && (typeof input[field] !== "number" || !Number.isFinite(input[field]) || input[field] < 0 || input[field] > 100)) return fail(`${field} must be between 0 and 100.`);
+      if (input.expectedValue !== undefined && (typeof input.expectedValue !== "number" || !Number.isFinite(input.expectedValue) || input.expectedValue < 0)) return fail("Expected value must be a positive number or zero.");
     }
+    if (method === "POST" && segments[1]) return fail("Method not allowed.", 405);
     const key = segments[0] === "integrations" ? "provider" : "id";
     const index = rows.findIndex((row) => row[key] === segments[1]);
     if (method === "GET") {

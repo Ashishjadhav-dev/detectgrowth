@@ -104,11 +104,11 @@ function JobsLoadingSkeleton() {
   return <div className="grid min-h-0 gap-5 lg:h-full lg:grid-cols-[minmax(300px,390px)_minmax(0,1fr)] lg:items-start" aria-label="Loading job listings"><div className="min-w-0 space-y-3"> <div className="flex items-center justify-between px-1 py-2"><Skeleton className="h-4 w-16" /><Skeleton className="h-3 w-20" /></div>{[1, 2, 3, 4, 5, 6].map((item) => <JobCardSkeleton key={item} />)}</div><div className="hidden min-w-0 lg:block lg:pt-14"><JobDetailSkeleton /></div></div>;
 }
 
-export function JobsView() {
+export function JobsView({ initialQuery = "" }: { initialQuery?: string }) {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => { const media = window.matchMedia("(max-width: 1023px)"); const update = () => setIsMobile(media.matches); update(); media.addEventListener("change", update); return () => media.removeEventListener("change", update); }, []);
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [workplaceFilter, setWorkplaceFilter] = useState<Workplace>("Any workplace");
   const [locationFilter, setLocationFilter] = useState<IndiaLocationFilter>("All India");

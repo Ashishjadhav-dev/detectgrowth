@@ -29,22 +29,83 @@ test("list creation persists and filters reach an empty state", async ({ page })
 });
 test("workspace pages fit the viewport without page overflow", async ({ page }) => {
   await login(page);
-  for (const route of ["dashboard", "discover", "people", "signals", "opportunities", "lists", "research", "settings", "icp", "integrations", "companies/abc-fashion", "opportunities/abc-fashion"]) {
+  for (const route of ["dashboard", "leads", "watchlists", "discover", "people", "signals", "opportunities", "lists", "research", "settings", "icp", "integrations", "companies/abc-fashion", "opportunities/abc-fashion"]) {
     await page.goto(`/${route}`);
     await expect(page.locator("main h1")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), route).toBeTruthy();
   }
 });
-test("chart tooltip is hidden initially and supports keyboard exploration", async ({ page }) => {
+test("growth signals, quick capture and lead stages work across reloads", async ({ page }, testInfo) => {
   await login(page);
-  await expect(page.getByRole("tooltip")).toHaveCount(0);
-  const chart = page.getByRole("slider");
-  await chart.focus();
-  await chart.press("ArrowRight");
-  await expect(chart).toHaveAttribute("aria-valuenow", "2");
-  await expect(page.getByRole("tooltip")).toBeVisible();
-  await chart.press("Escape");
-  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await page.route("**/api/leads/audit?*", (route) => route.fulfill({ json: {
+    checkedAt: "2026-11-25T09:00:00.000Z", status: 503, title: "", mobileReady: null,
+    secure: true, lastModified: null, changeSignals: ["Homepage returned HTTP 503"],
+  } }));
+  await page.getByRole("link", { name: /Discover business leads/ }).click();
+  await page.getByRole("button", { name: "View example results" }).click();
+  await expect(page.getByText("Example results use fictional business and contact details.")).toBeVisible();
+
+  const results = page.getByRole("list", { name: "Lead results" });
+  const row = results.getByRole("listitem").filter({ hasText: "Greenline Dental clinics" });
+  const business = row.getByRole("button", { name: /^Greenline Dental clinics/ });
+  await expect(row.getByRole("link", { name: "Call Greenline Dental clinics" })).toHaveAttribute("href", "tel:+12025550148");
+  await business.click();
+  const mobile = testInfo.project.name === "mobile";
+  const scope = mobile ? page.getByRole("dialog") : page.locator("main article");
+  await scope.getByRole("button", { name: "Run website check" }).click();
+  await expect(scope.getByRole("button", { name: "Check again" })).toBeEnabled();
+  if (mobile) await scope.getByRole("button", { name: "Close dialog" }).click();
+
+  await page.getByLabel("Filter by growth signal").selectOption("audit");
+  await expect(results.getByRole("listitem")).toHaveCount(1);
+  await expect(row.getByText("Homepage returned HTTP 503")).toBeVisible();
+  await row.getByRole("button", { name: "Capture Greenline Dental clinics" }).click();
+  await expect(row.getByText("Captured", { exact: true })).toBeVisible();
+  await business.click();
+  await scope.getByLabel("Lead stage").selectOption("Interested");
+  await scope.getByLabel("Lead notes").fill("Recheck the homepage before reaching out.");
+  await scope.getByRole("button", { name: "Save notes" }).click();
+  await expect(page.getByText("Notes saved.")).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: /Shortlist/ }).click();
+  await expect(row.getByText("Homepage returned HTTP 503")).toBeVisible();
+  await expect(row.getByText("Interested", { exact: true })).toBeVisible();
+  await business.click();
+  await expect(scope.getByLabel("Lead stage")).toHaveValue("Interested");
+  await expect(scope.getByLabel("Lead notes")).toHaveValue("Recheck the homepage before reaching out.");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBeTruthy();
+});
+
+test("save, recheck, and remove a market watchlist", async ({ page }) => {
+  await login(page);
+  await page.getByRole("link", { name: /Discover business leads/ }).click();
+  await page.getByRole("button", { name: "View example results" }).click();
+  await page.getByRole("button", { name: "Save as watchlist" }).click();
+  await page.getByRole("link", { name: "Open watchlist" }).click();
+  await expect(page.getByRole("heading", { name: "Growth Watchlists" })).toBeVisible();
+  await expect(page.getByText("First check saved.", { exact: false })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Recheck market" }).click();
+  await expect(page.getByRole("heading", { name: "New since last check" })).toBeVisible();
+  await expect(page.getByText("No new listings in these results.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Changed since last check" })).toBeVisible();
+  await page.getByRole("link", { name: "Open in lead discovery" }).click();
+  const locality = page.getByLabel("City or neighborhood");
+  await expect(locality).toHaveValue("Indiranagar, Bengaluru");
+  await expect(page.getByText("Example results use fictional business and contact details.")).toBeVisible();
+  await page.route("**/api/leads?*", async (route) => {
+    if (new URL(route.request().url()).searchParams.get("locality") !== "Pune") return route.continue();
+    return route.fulfill({ json: { leads: [], source: "OpenStreetMap", resolvedLocality: "Pune", fetchedAt: "2026-11-25T09:00:00.000Z" } });
+  });
+  await locality.fill("Pune");
+  const liveSearch = page.waitForRequest((request) => new URL(request.url()).searchParams.get("locality") === "Pune");
+  await page.getByRole("button", { name: "Find leads", exact: true }).click();
+  expect(new URL((await liveSearch).url()).searchParams.has("mode")).toBeFalsy();
+  await page.goBack();
+  await page.getByRole("button", { name: "Remove watchlist" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "No saved markets yet" })).toBeVisible();
 });
 
 test("registration, onboarding, profile update and returning sign-in", async ({ page }) => {
@@ -74,7 +135,7 @@ test("registration, onboarding, profile update and returning sign-in", async ({ 
 
 test("jobs search, job selection, and saved state work", async ({ page }, testInfo) => {
   await login(page);
-  await page.goto("/jobs");
+  await page.goto("/jobs?query=accenture");
   await expect(page.getByRole("textbox", { name: "Search jobs", exact: true })).toHaveValue("accenture");
   await page.getByRole("button", { name: /Software Engineer/ }).click();
   const scope = testInfo.project.name === "mobile" ? page.getByRole("dialog") : page.locator("main");
@@ -96,6 +157,20 @@ test("navigation collapses or opens a keyboard-accessible mobile drawer", async 
     await page.reload();
     await expect(page.getByRole("button", { name: "Expand sidebar" })).toBeVisible();
   }
+});
+
+test("Growth and Career navigation follow the workspace routes", async ({ page, isMobile }) => {
+  await login(page);
+  if (isMobile) await page.getByRole("button", { name: "Open navigation" }).click();
+  let nav = page.getByRole("navigation", { name: "Growth navigation" });
+  await expect(nav.getByRole("link", { name: "Lead discovery" })).toBeVisible();
+  await nav.getByRole("link", { name: "Open career workspace" }).click();
+  await expect(page).toHaveURL(/\/jobs$/);
+  if (isMobile) await page.getByRole("button", { name: "Open navigation" }).click();
+  nav = page.getByRole("navigation", { name: "Career navigation" });
+  await expect(nav.getByRole("link", { name: "Resume Builder" })).toBeVisible();
+  await nav.getByRole("link", { name: "Open growth workspace" }).click();
+  await expect(page).toHaveURL(/\/leads$/);
 });
 
 test("forgotten password can be recovered with the registration code", async ({ page }) => {

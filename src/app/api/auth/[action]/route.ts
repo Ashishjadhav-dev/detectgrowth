@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hasSameOrigin } from "@/lib/server/request-origin";
 import { randomUUID, randomBytes } from "node:crypto";
 import { credentials, newSession, publicUser, tokenHash, transact, verify } from "@/lib/server/accounts";
 
@@ -10,14 +11,13 @@ const fail = (message: string, status = 400) => NextResponse.json({ error: messa
 const attempts = new Map<string, { count: number; until: number }>();
 
 export async function GET(request: NextRequest) {
-  if (request.cookies.get(guestCookieName)?.value === "1") return NextResponse.json({ user: guestUser }, { headers: { "Cache-Control": "no-store" } });
   const token = request.cookies.get(cookieName)?.value;
-  const user = token ? await transact((db) => db.sessions[tokenHash(token)]?.user ?? null) : null;
+  const user = token ? await transact((db) => db.sessions[tokenHash(token)]?.user ?? null) : request.cookies.get(guestCookieName)?.value === "1" ? guestUser : null;
   return NextResponse.json({ user }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: NextRequest, context: { params: Promise<{ action: string }> }) {
-  if (request.headers.get("origin") !== request.nextUrl.origin) return fail("Request origin is not allowed.", 403);
+  if (!hasSameOrigin(request)) return fail("Request origin is not allowed.", 403);
   const { action } = await context.params;
   if (!["sign-in", "sign-up", "demo", "sign-out", "profile", "password", "reset-password"].includes(action)) return fail("Not found.", 404);
   if (Number(request.headers.get("content-length") ?? 0) > 16384) return fail("Request is too large.", 413);
@@ -74,11 +74,6 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ac
       });
     }
     const demo = action === "demo" || (action === "sign-in" && email === "demo@detectgrowth.com" && ["detectgrowth123", "Demo@123"].includes(password));
-    if (demo) {
-      const response = NextResponse.json({ user: guestUser });
-      response.cookies.set(guestCookieName, "1", { httpOnly: true, sameSite: "lax", secure: request.nextUrl.protocol === "https:", path: "/", maxAge: 7 * 86400 });
-      return response;
-    }
     if (!demo && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || password.length > 128)) return fail("Enter a valid email and a password between 8 and 128 characters.");
     const result = await transact((db) => {
       let user;

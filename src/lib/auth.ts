@@ -5,12 +5,14 @@ const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
 // Same-origin Next.js API routes are the Vercel deployment default. Ignore
 // accidental relative values such as "/a" instead of generating /a/api/... URLs.
 const API_BASE_URL = /^https?:\/\//i.test(configuredApiUrl) ? configuredApiUrl.replace(/\/$/, "") : "";
+export const usesExternalAuth = Boolean(API_BASE_URL);
 const backendActions = new Set(["sign-in", "sign-up", "sign-out", "demo", "request-password-reset", "verify-password-reset", "reset-password"]);
 
 function mapUser(raw: unknown): SessionUser | null {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as { id?: string; name?: string; email?: string; workspace?: string | { name?: string }; isDemo?: boolean };
-  return { id: value.id ?? "", name: value.name ?? "", email: value.email ?? "", workspace: typeof value.workspace === "string" ? value.workspace : value.workspace?.name ?? "DetectGrowth Workspace", isDemo: Boolean(value.isDemo) };
+  if (typeof value.id !== "string" || !value.id) return null;
+  return { id: value.id, name: value.name ?? "", email: value.email ?? "", workspace: typeof value.workspace === "string" ? value.workspace : value.workspace?.name ?? "DetectGrowth Workspace", isDemo: Boolean(value.isDemo) };
 }
 
 async function parseResponse(response: Response) {
@@ -33,7 +35,7 @@ export async function authRequest(action: string, input?: Record<string, string>
   const data = await parseResponse(response);
   if (data.recoveryCode) window.sessionStorage.setItem("detectgrowth-recovery-code", data.recoveryCode);
   if (action === "profile") window.dispatchEvent(new Event("auth-changed"));
-  const payload = data.data ?? data.user ?? data;
+  const payload = Object.hasOwn(data, "data") ? data.data : Object.hasOwn(data, "user") ? data.user : data;
   if (action === "verify-password-reset") return payload as { resetToken?: string };
   return mapUser(payload);
 }

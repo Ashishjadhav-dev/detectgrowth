@@ -69,9 +69,30 @@ npm run dev
 
 Then open `http://localhost:3000`.
 
-The frontend uses `NEXT_PUBLIC_API_URL` for API requests and defaults to
-`http://localhost:8080`. Copy `.env.example` to `.env.local` when connecting
-to a different backend.
+The browser uses the same-origin Next.js APIs by default. Sign in or choose
+the demo account, then open **Lead discovery**. The Go service is optional for
+the local lead and career workspaces.
+
+### DetectGrowth lead discovery
+
+Choose a city or neighborhood, a category, and a radius. Photon resolves the
+location and Overpass returns nearby OpenStreetMap businesses with any published
+phone, email, and website fields. If Overpass is unavailable, Photon can return
+a smaller set from the map name index. The UI marks those results as limited
+because the index does little contact enrichment.
+
+Use the public listing or website check to qualify a prospect. Save OpenStreetMap
+leads to your shortlist, add notes, move leads through stages, and export filtered
+results as CSV. Registered users can add a saved lead to the opportunity pipeline.
+The demo shortlist lives in the current browser and example results use fictional
+details.
+
+`LEADS_DATA_MODE=osm` is the credential-free default. Use `demo` for fixtures.
+`LEADS_PHOTON_URL` and `LEADS_OVERPASS_URL` can point to hosted or self-hosted
+equivalents. Small interactive searches use shared public instances by default.
+The regular search shows provider errors when live data is unavailable and offers
+a separate example preview. The legacy `LEADS_DATA_MODE=google` option requires
+`GOOGLE_MAPS_API_KEY` and provides a display-only view of Google Places results.
 
 ### AI personalization
 
@@ -102,9 +123,13 @@ cd backend && go run ./cmd/server
 cd backend && go run ./cmd/worker
 ```
 
-For a Vercel deployment, set `NEXT_PUBLIC_API_URL` to the publicly reachable
-backend URL. Vercel deploys the Next.js frontend; PostgreSQL, Redis, and the Go
-API/worker need to run on a separate host or managed service.
+Vercel can run the Next.js routes with a supported Neon `DATABASE_URL`. The
+filesystem adapter needs a writable persistent volume and a single instance.
+The optional Go API and worker run on a separate host or managed service. Set
+`JOBS_BACKEND_URL` to use their jobs catalog while keeping the workspace session
+and lead data in Next.js. The legacy direct-Go mode selected by
+`NEXT_PUBLIC_API_URL` uses a separate session and does not support the Next.js
+lead shortlist or other Next.js-only workspace routes.
 
 ## Quality checks
 ```bash
@@ -126,16 +151,16 @@ or an uncommitted `.env` file, then run:
 docker compose -f docker-compose.production.yml up -d --build
 ```
 
-Required values are `POSTGRES_PASSWORD` and `JWT_SECRET`. For a public
-deployment, set `API_PUBLIC_URL` to the externally reachable Go API URL; it is
-baked into the browser bundle because the browser must be able to send session
-requests to the API. Set `FRONTEND_ORIGIN`, `APP_URL`, `COOKIE_SECURE=true`,
-and a strong `JWT_SECRET` for HTTPS production. The `migrations` service runs
-all SQL migrations before the API, worker, and web services start.
+Required values are `POSTGRES_PASSWORD` and `JWT_SECRET`. By default the web
+container uses a same-origin workspace API and a persistent `web-state` volume.
+The Go API supplies the public jobs catalog through the internal Compose network.
+Set `APP_URL` and `FRONTEND_ORIGIN` for your deployment. `API_PUBLIC_URL`
+explicitly opts the browser into legacy direct-Go mode. The migrations service
+runs all SQL migrations before the API, worker, and web services start.
 
 This Compose deployment is a single release operation, but it still runs
 multiple containers. PostgreSQL and Redis volumes must be backed up, and the
-API/worker need a host or platform that supports persistent processes. Docker
+web state also needs a backup, and the API/worker need a host or platform that supports persistent processes. Docker
 image builds should be performed with Docker Desktop or a CI builder enabled.
 
 ## Structure
@@ -143,7 +168,7 @@ image builds should be performed with Docker Desktop or a CI builder enabled.
 - `src/components/ui` primitives
 - `src/components/layout` shell
 - `src/features` feature-level sections
-- `src/data` realistic mock data
+- `src/data` example workspace and job records
 - `src/lib` shared utilities
 
 The UI keeps presentation data typed, with API-backed feature views and local
