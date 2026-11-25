@@ -22,9 +22,10 @@ export function Dialog({ open, title, description, onClose, children, className 
       }
     };
     document.addEventListener("keydown", onKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; previousFocus?.focus(); };
+    const scrollArea = panel.current?.closest<HTMLElement>("[data-workspace-scroll]") ?? document.body;
+    const previousOverflow = scrollArea.style.overflow;
+    scrollArea.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKeyDown); scrollArea.style.overflow = previousOverflow; previousFocus?.focus(); };
   }, [open]);
 
   if (!open) return null;
