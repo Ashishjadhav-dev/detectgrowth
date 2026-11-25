@@ -92,7 +92,7 @@ services:
     build:
       context: .
       args:
-        NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL:-http://localhost:8080}
+        NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL:-}
     restart: unless-stopped
     depends_on:
       api:
@@ -101,11 +101,20 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL:-}
       JOBS_DATA_MODE: ${JOBS_DATA_MODE:-live}
+      JOBS_BACKEND_URL: ${JOBS_BACKEND_URL:-http://api:8080}
+      AUTH_DATA_DIR: /app/.data
+      LEADS_DATA_MODE: ${LEADS_DATA_MODE:-osm}
+      LEADS_PHOTON_URL: ${LEADS_PHOTON_URL:-}
+      LEADS_OVERPASS_URL: ${LEADS_OVERPASS_URL:-}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+    volumes:
+      - web-state:/app/.data
     ports:
       - "${WEB_PORT:-3000}:3000"
 
 volumes:
   postgres-data:
   redis-data:
+  web-state:

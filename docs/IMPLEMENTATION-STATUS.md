@@ -6,6 +6,13 @@ registered accounts also start with sample records that can be edited and delete
 
 ## Delivered
 
+- Lead discovery uses Photon and Overpass by default. Searches include a source
+  link and explain which priority signal was observed. The website check can
+  refine the priority and outreach draft.
+- The lead shortlist persists stages and notes, exports OpenStreetMap records to
+  CSV, and can create a workspace opportunity without duplicates. Demo shortlists
+  live in the browser.
+
 - Account registration, returning sign-in, one-click demo login, logout, profile
   changes, password changes, and seven-day server-validated sessions.
 - Forgotten-password recovery using a code issued during registration. Recovery
@@ -27,6 +34,7 @@ registered accounts also start with sample records that can be edited and delete
 - `npm run build` checks compilation, lint, and types.
 - `TEST_BASE_URL=http://localhost:3002 npm run test:api` tests the running server.
 - `npm run test:e2e` tests desktop and mobile against port 3002 by default.
+  Start the test server with `JOBS_DATA_MODE=demo` for deterministic job fixture checks.
 
 ## Local storage adapter
 
@@ -41,11 +49,12 @@ server adapter does not require rewriting page components.
 
 ## Production dependencies and limits
 
-- Deploying to Vercel or multiple instances requires replacing the local storage
-  adapter with a persistent database. The repository's existing Go/Postgres backend
-  is a possible adapter, but its authentication and data contracts need integration
-  testing before setting `NEXT_PUBLIC_API_URL` to that backend. The current local
-  session is not a session in the external backend.
+- The filesystem adapter is intended for a single instance with a persistent
+  volume. A Neon adapter is available through `DATABASE_URL`; its shared
+  workspace state still needs cross-instance concurrency validation.
+  Direct browser access to the optional Go backend uses a separate session and
+  only covers its implemented API contracts. Set `JOBS_BACKEND_URL` to consume
+  the Go jobs catalog independently.
 - Integration switches persist workspace configuration; they do not authorize
   third-party OAuth accounts or run ingestion workers.
 - Notification preferences persist; email digests require an email provider and
@@ -60,8 +69,7 @@ server adapter does not require rewriting page components.
 - AI personalization requires an OpenAI API key, provider billing/limits,
   server-side rate limiting, usage metering, prompt/version monitoring, and
   privacy/retention controls before a public launch.
-- Growth chart history is sample data; dashboard summary counts reflect the
-  workspace records. Historical comparisons require a real history dataset.
+- Historical growth comparisons still require a real event history dataset.
 - Workspace roles, team invitations, billing, and multi-user authorization are not
   implemented. Do not claim these capabilities based on the demo.
 - Browser checks cover Chromium desktop and mobile viewport emulation. Physical
