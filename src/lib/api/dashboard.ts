@@ -47,6 +47,10 @@ export function getDashboardData() {
   }));
 }
 
+export function getDashboardTasks() {
+  return apiRequest<DashboardTask[]>("/api/v1/dashboard/tasks");
+}
+
 export function updateDashboardTask(id: string, completed: boolean) {
   return apiRequest<DashboardTask>(`/api/v1/dashboard/tasks/${id}`, {
     method: "PATCH",

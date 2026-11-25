@@ -3,7 +3,7 @@ import type { JobListing, JobSource, JobsResponse } from "@/types/jobs";
 import { matchesRelatedRoleQuery, matchesRoleQuery } from "@/lib/jobs-search";
 
 export const revalidate = 300;
-const configuredBackendUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
+const configuredBackendUrl = process.env.JOBS_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "";
 const backendBaseUrl = /^https?:\/\//i.test(configuredBackendUrl) ? configuredBackendUrl.replace(/\/$/, "") : "";
 
 const MAX_BOARD_COUNT = 20;
@@ -317,7 +317,7 @@ async function fetchFeed(feed: ReturnType<typeof feedsFor>[number]) {
 }
 
 export async function GET(request: Request) {
-  if (backendBaseUrl) {
+  if (backendBaseUrl && process.env.JOBS_DATA_MODE !== "demo") {
     const incoming = new URL(request.url);
     const backendUrl = new URL("/api/v1/jobs", backendBaseUrl);
     for (const key of ["q", "search", "source", "workplace", "location", "employmentType", "postedWithin", "page", "pageSize"]) {
@@ -326,15 +326,18 @@ export async function GET(request: Request) {
     }
     try {
       const response = await fetch(backendUrl, {
-        headers: { Accept: "application/json", Cookie: request.headers.get("cookie") ?? "" },
+        headers: { Accept: "application/json" },
+        redirect: "error",
         cache: "no-store",
         signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
       });
       const payload = await response.json() as { data?: JobsResponse; meta?: JobsResponse["meta"]; error?: { message?: string } };
-      if (!response.ok || !payload.data) return NextResponse.json({ error: payload.error?.message ?? "Unable to load jobs." }, { status: response.status || 502 });
-      return NextResponse.json({ ...payload.data, meta: payload.meta }, { headers: { "Cache-Control": "private, no-store" } });
+      if (response.ok && payload.data && (!process.env.JOBS_BACKEND_URL || payload.data.jobs.length)) {
+        return NextResponse.json({ ...payload.data, meta: payload.meta }, { headers: { "Cache-Control": "private, no-store" } });
+      }
+      if (!process.env.JOBS_BACKEND_URL) return NextResponse.json({ error: payload.error?.message ?? "Unable to load jobs." }, { status: response.ok ? 502 : response.status });
     } catch {
-      return NextResponse.json({ error: "The jobs service is temporarily unavailable." }, { status: 502 });
+      if (!process.env.JOBS_BACKEND_URL) return NextResponse.json({ error: "The jobs service is temporarily unavailable." }, { status: 502 });
     }
   }
   if (process.env.JOBS_DATA_MODE !== "live") {
@@ -369,6 +372,10 @@ export async function GET(request: Request) {
       sources[source] = { ok: false, count: 0, error: result.reason instanceof Error ? result.reason.message : "Unable to load feed" };
     }
   });
+
+  if (results.every((result) => result.status === "rejected")) {
+    return NextResponse.json({ error: "The job sources are temporarily unavailable. Please try again shortly." }, { status: 502 });
+  }
 
   const uniqueJobs = [...new Map(jobs.map((job) => [job.url, job])).values()];
   const matchingJobs = uniqueJobs.filter((job) => matchesFilters(job, search, location, employmentType, postedWithin));
